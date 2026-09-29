@@ -5,6 +5,7 @@ import { isRoomValid } from '../base/conference/functions';
 import { isSupportedBrowser } from '../base/environment/environment';
 import { toState } from '../base/redux/functions';
 import Conference from '../conference/components/web/Conference';
+import FreshCallMeeting from '../fresh-call-sdk/FreshCallMeeting';
 import { getDeepLinkingPage } from '../deep-linking/functions';
 import UnsupportedDesktopBrowser from '../unsupported-browser/components/UnsupportedDesktopBrowser';
 import BlankPage from '../welcome/components/BlankPage.web';
@@ -62,7 +63,7 @@ function _getWebConferenceRoute(state: IReduxState): Promise<any> | undefined {
             if (deepLinkComponent) {
                 route.component = deepLinkComponent;
             } else if (isSupportedBrowser()) {
-                route.component = Conference;
+                route.component = FreshCallMeeting; // Bypassing Jitsi Conference for Custom Backend
             } else {
                 route.component = UnsupportedDesktopBrowser;
             }
