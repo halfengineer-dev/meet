@@ -52,6 +52,8 @@ import StateListenerRegistry from '../redux/StateListenerRegistry';
 import { TRACK_ADDED, TRACK_CREATE_CANCELED, TRACK_REMOVED } from '../tracks/actionTypes';
 import { getLocalTrack } from '../tracks/functions.any';
 import { parseURIString } from '../util/uri';
+import { updateSettings } from '../settings/actions';
+import { toggleRequestingSubtitles } from '../../subtitles/actions.any';
 
 import {
     CONFERENCE_FAILED,
@@ -459,6 +461,42 @@ function _participantRoleChanged(store: IStore, next: Function, action: AnyActio
 
     if (action.participant?.id === getLocalParticipant(getState)?.id) {
         _maybeNotifySettingsIncomplete({ dispatch, getState });
+        
+        // Fresh Call: Process pending host options if the user just became moderator
+        if (action.participant?.role === PARTICIPANT_ROLE.MODERATOR) {
+            const settings = getState()['features/base/settings'];
+            const conference = getCurrentConference(getState);
+            
+            if (conference) {
+                let optionsProcessed = false;
+                
+                if (settings.fcHostWaitingRoom) {
+                    conference.enableLobby();
+                    dispatch(updateSettings({ fcHostWaitingRoom: false }));
+                    optionsProcessed = true;
+                }
+                
+                if (settings.fcHostRequirePasscode && settings.fcHostRequirePasscode !== '') {
+                    conference.lock(settings.fcHostRequirePasscode);
+                    dispatch(updateSettings({ fcHostRequirePasscode: '' }));
+                    optionsProcessed = true;
+                }
+                
+                if (settings.fcHostLiveTranscription) {
+                    dispatch(toggleRequestingSubtitles());
+                    dispatch(updateSettings({ fcHostLiveTranscription: false }));
+                    optionsProcessed = true;
+                }
+                
+                // If passcode is set, notify the host!
+                if (optionsProcessed && settings.fcHostRequirePasscode) {
+                    dispatch(showNotification({
+                        title: 'Room secured',
+                        description: `The room requires a passcode. Your passcode is: ${settings.fcHostRequirePasscode}`
+                    }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
+                }
+            }
+        }
     }
 
     return result;

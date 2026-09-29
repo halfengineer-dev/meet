@@ -39,12 +39,17 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
             // Generate a random room name if empty
             roomToJoin = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
         }
+        
+        let passcode = '';
+        if (requirePasscode) {
+            passcode = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digit passcode
+        }
 
         onHost(roomToJoin, {
             videoOn,
             micOn,
             waitingRoom,
-            requirePasscode,
+            requirePasscode: passcode,
             liveTranscription
         });
     };

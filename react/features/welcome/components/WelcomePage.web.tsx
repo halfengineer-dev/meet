@@ -245,7 +245,10 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                             // Apply the toggles to local settings before joining
                             this.props.dispatch(updateSettings({
                                 startWithAudioMuted: !options.micOn,
-                                startWithVideoMuted: !options.videoOn
+                                startWithVideoMuted: !options.videoOn,
+                                fcHostWaitingRoom: options.waitingRoom,
+                                fcHostRequirePasscode: options.requirePasscode,
+                                fcHostLiveTranscription: options.liveTranscription
                             }));
                             this.setState({ room: r }, () => this._onJoin());
                         } } />
