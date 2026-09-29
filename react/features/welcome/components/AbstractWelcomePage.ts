@@ -71,6 +71,8 @@ interface IState {
     roomNameInputAnimation?: any;
     roomPlaceholder: string;
     updateTimeoutId?: number;
+    showJoinPage?: boolean;
+    generateRoomNames?: boolean;
 }
 
 /**
