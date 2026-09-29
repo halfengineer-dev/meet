@@ -12,6 +12,7 @@ import CalendarList from '../../calendar-sync/components/CalendarList.web';
 import RecentList from '../../recent-list/components/RecentList.web';
 import SettingsButton from '../../settings/components/web/SettingsButton';
 import { SETTINGS_TABS } from '../../settings/constants';
+import { updateSettings } from '../../base/settings/actions';
 
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
 import HostMeetingView from './HostMeetingView.web';
@@ -241,14 +242,17 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                     <HostMeetingView
                         generatedRoomName = {this.state.generatedRoomName}
                         onHost = { (r, options) => {
-                            // Currently skipping options application to the backend/client 
-                            // as we just want to join the room with video/audio toggles preset in store
-                            this.setState({ room: r }, () => this._onFormSubmit({ preventDefault: () => {} } as any));
+                            // Apply the toggles to local settings before joining
+                            this.props.dispatch(updateSettings({
+                                startWithAudioMuted: !options.micOn,
+                                startWithVideoMuted: !options.videoOn
+                            }));
+                            this.setState({ room: r }, () => this._onJoin());
                         } } />
                 ) : this.state.showJoinPage ? (
                     <JoinMeetingView
                         onJoin = { r => {
-                            this.setState({ room: r }, () => this._onFormSubmit({ preventDefault: () => {} } as any));
+                            this.setState({ room: r }, () => this._onJoin());
                         } } />
                 ) : (
                     <div className = 'hero-section'>

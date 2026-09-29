@@ -33,7 +33,14 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
 
     const handleHost = () => {
         dispatch(updateSettings({ displayName: name }));
-        onHost(generatedRoomName, {
+        
+        let roomToJoin = generatedRoomName;
+        if (!roomToJoin || roomToJoin.trim() === '') {
+            // Generate a random room name if empty
+            roomToJoin = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
+        }
+
+        onHost(roomToJoin, {
             videoOn,
             micOn,
             waitingRoom,
