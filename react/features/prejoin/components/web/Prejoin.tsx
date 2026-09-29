@@ -1,27 +1,24 @@
 /* eslint-disable react/jsx-no-bind */
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { connect, useDispatch } from 'react-redux';
+import { connect, useDispatch, useSelector } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 
 import { IReduxState } from '../../../app/types';
 import Avatar from '../../../base/avatar/components/Avatar';
 import { isNameReadOnly } from '../../../base/config/functions.web';
-import { IconArrowDown, IconArrowUp, IconPhoneRinging, IconVolumeOff } from '../../../base/icons/svg';
+import { IconPhoneRinging, IconVolumeOff } from '../../../base/icons/svg';
 import { isVideoMutedByUser } from '../../../base/media/functions';
 import { getLocalParticipant } from '../../../base/participants/functions';
-import Popover from '../../../base/popover/components/Popover.web';
-import ActionButton from '../../../base/premeeting/components/web/ActionButton';
 import PreMeetingScreen from '../../../base/premeeting/components/web/PreMeetingScreen';
 import { updateSettings } from '../../../base/settings/actions';
 import { getDisplayName } from '../../../base/settings/functions.web';
 import { getLocalJitsiVideoTrack } from '../../../base/tracks/functions.web';
-import Button from '../../../base/ui/components/web/Button';
 import Input from '../../../base/ui/components/web/Input';
-import { BUTTON_TYPES } from '../../../base/ui/constants.any';
 import isInsecureRoomName from '../../../base/util/isInsecureRoomName';
 import { openDisplayNamePrompt } from '../../../display-name/actions';
 import { isUnsafeRoomWarningEnabled } from '../../../prejoin/functions';
+import { toggleBackgroundEffect } from '../../../virtual-background/actions';
 import {
     joinConference as joinConferenceAction,
     joinConferenceWithoutAudio as joinConferenceWithoutAudioAction,
@@ -240,6 +237,11 @@ const Prejoin = ({
     const { classes } = useStyles();
     const { t } = useTranslation();
     const dispatch = useDispatch();
+    const availableDevices = useSelector((state: IReduxState) => state['features/base/devices'].availableDevices);
+    const settings = useSelector((state: IReduxState) => state['features/base/settings']);
+
+    const [ bgEffects, setBgEffects ] = useState(false);
+    const [ touchUp, setTouchUp ] = useState(false);
 
     /**
      * Handler for the join button.
@@ -447,57 +449,85 @@ const Prejoin = ({
                     </p>
                 </div>}
 
-                <div className="fc-device-mockups">
-                    <div className="fc-select">🎤 Default - MacBook Air Microphone <span className="fc-select-arrow">▾</span></div>
-                    <div className="fc-select">📷 FaceTime HD Camera <span className="fc-select-arrow">▾</span></div>
-                    <div className="fc-select">🔊 Default - MacBook Air Speakers <span className="fc-select-arrow">▾</span></div>
-                    <div className="fc-toggle-row">
-                        <span>Enable background effects</span>
-                        <div className="fc-toggle fc-toggle-on"><div className="fc-toggle-knob"></div></div>
+                <div className = 'fc-device-mockups'>
+                    <div className = 'fc-select'>
+                        <select
+                            className = 'fc-hidden-select'
+                            onChange = { e => dispatchUpdateSettings({ micDeviceId: e.target.value }) }
+                            value = { settings.micDeviceId || '' }>
+                            {(availableDevices.audioInput || []).map(d => (
+                                <option
+                                    key = { d.deviceId }
+                                    value = { d.deviceId }>{d.label || 'Microphone'}</option>
+                            ))}
+                        </select>
+                        <span className = 'fc-select-arrow'>▾</span>
                     </div>
-                    <div className="fc-toggle-row">
+                    <div className = 'fc-select'>
+                        <select
+                            className = 'fc-hidden-select'
+                            onChange = { e => dispatchUpdateSettings({ cameraDeviceId: e.target.value }) }
+                            value = { settings.cameraDeviceId || '' }>
+                            {(availableDevices.videoInput || []).map(d => (
+                                <option
+                                    key = { d.deviceId }
+                                    value = { d.deviceId }>{d.label || 'Camera'}</option>
+                            ))}
+                        </select>
+                        <span className = 'fc-select-arrow'>▾</span>
+                    </div>
+                    <div className = 'fc-select'>
+                        <select
+                            className = 'fc-hidden-select'
+                            onChange = { e => dispatchUpdateSettings({ audioOutputDeviceId: e.target.value }) }
+                            value = { settings.audioOutputDeviceId || '' }>
+                            {(availableDevices.audioOutput || []).map(d => (
+                                <option
+                                    key = { d.deviceId }
+                                    value = { d.deviceId }>{d.label || 'Speaker'}</option>
+                            ))}
+                        </select>
+                        <span className = 'fc-select-arrow'>▾</span>
+                    </div>
+                    <div className = 'fc-toggle-row'>
+                        <span>Enable background effects</span>
+                        <div
+                            className = { `fc-toggle ${bgEffects ? 'fc-toggle-on' : ''}` }
+                            onClick = { async () => {
+                                const nextState = !bgEffects;
+
+                                setBgEffects(nextState);
+                                if (videoTrack) {
+                                    await dispatch(toggleBackgroundEffect({
+                                        backgroundEffectEnabled: nextState,
+                                        backgroundType: nextState ? 'blur' : 'none',
+                                        blurValue: 25,
+                                        selectedThumbnail: 'none',
+                                        virtualSource: 'none'
+                                    }, videoTrack));
+                                }
+                            } }>
+                            <div className = 'fc-toggle-knob' />
+                        </div>
+                    </div>
+                    <div className = 'fc-toggle-row'>
                         <span>Touch up my appearance</span>
-                        <div className="fc-toggle fc-toggle-on"><div className="fc-toggle-knob"></div></div>
+                        <div
+                            className = { `fc-toggle ${touchUp ? 'fc-toggle-on' : ''}` }
+                            onClick = { () => setTouchUp(!touchUp) }>
+                            <div className = 'fc-toggle-knob' />
+                        </div>
                     </div>
                 </div>
 
-                <div className="fc-actions">
-                    <button className="fc-btn-cancel">Cancel</button>
-                    <div className = { classes.dropdownContainer }>
-                    <Popover
-                        content = { hasExtraJoinButtons && <div className = { classes.dropdownButtons }>
-                            {extraButtonsToRender.map(({ key, ...rest }) => (
-                                <Button
-                                    disabled = { joiningInProgress || showErrorOnField }
-                                    fullWidth = { true }
-                                    key = { key }
-                                    type = { BUTTON_TYPES.SECONDARY }
-                                    { ...rest } />
-                            ))}
-                        </div> }
-                        onPopoverClose = { onDropdownClose }
-                        position = 'bottom'
-                        trigger = 'click'
-                        visible = { showJoinByPhoneButtons }>
-                        <ActionButton
-                            OptionsIcon = { showJoinByPhoneButtons ? IconArrowUp : IconArrowDown }
-                            ariaDropDownLabel = { t('prejoin.joinWithoutAudio') }
-                            ariaLabel = { t('prejoin.joinMeeting') }
-                            ariaPressed = { showJoinByPhoneButtons }
-                            disabled = { joiningInProgress
-                                || (showUnsafeRoomWarning && !unsafeRoomConsent)
-                                || showErrorOnField }
-                            hasOptions = { hasExtraJoinButtons }
-                            onClick = { onJoinButtonClick }
-                            onOptionsClick = { onOptionsClick }
-                            role = 'button'
-                            tabIndex = { 0 }
-                            testId = 'prejoin.joinMeeting'
-                            type = 'primary'>
-                            {t('prejoin.joinMeeting')}
-                        </ActionButton>
-                    </Popover>
-                </div>
+                <div className = 'fc-actions'>
+                    <button className = 'fc-btn-cancel'>Cancel</button>
+                    <button
+                        className = 'fc-btn-join'
+                        disabled = { joiningInProgress || showErrorOnField }
+                        onClick = { onJoinButtonClick }>
+                        {t('prejoin.joinMeeting')}
+                    </button>
                 </div>
             </div>
             {showDialog && (

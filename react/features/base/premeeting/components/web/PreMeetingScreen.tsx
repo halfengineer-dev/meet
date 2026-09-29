@@ -1,6 +1,7 @@
+/* eslint-disable react/jsx-no-bind, react-native/no-inline-styles */
 import clsx from 'clsx';
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
-import { connect } from 'react-redux';
+import React, { ReactNode, useEffect, useState, useCallback } from 'react';
+import { connect, useDispatch } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 
 import { IReduxState } from '../../../../app/types';
@@ -11,6 +12,8 @@ import Toolbox from '../../../../toolbox/components/web/Toolbox';
 import { isButtonEnabled } from '../../../../toolbox/functions.web';
 import { getConferenceName } from '../../../conference/functions';
 import { PREMEETING_BUTTONS, THIRD_PARTY_PREJOIN_BUTTONS } from '../../../config/constants';
+import { openSettingsDialog } from '../../../settings/actions';
+import { SETTINGS_TABS } from '../../../settings/constants';
 import Tooltip from '../../../tooltip/components/Tooltip';
 import { isPreCallTestEnabled } from '../../functions';
 
@@ -204,51 +207,88 @@ const PreMeetingScreen = ({
     videoMuted,
     videoTrack
 }: IProps) => {
+    const { classes, cx } = useStyles();
+    const dispatch = useDispatch();
+
+    const [ timeDisplay, setTimeDisplay ] = useState('');
+
+    useEffect(() => {
+        const updateTime = () => {
+            const now = new Date();
+            const options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+            const dateStr = now.toLocaleDateString('en-US', options);
+            const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            const endNow = new Date(now.getTime() + 60 * 60 * 1000);
+            const endTimeStr = endNow.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+
+            setTimeDisplay(`${dateStr} | ${timeStr} – ${endTimeStr}`);
+        };
+
+        updateTime();
+        const interval = setInterval(updateTime, 60000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    const onBgClick = () => {
+        dispatch(openSettingsDialog(SETTINGS_TABS.VIRTUAL_BACKGROUND));
+    };
+
     return (
         <div className = { clsx('fresh-call-prejoin-wrapper', className) }>
-             <div className="fc-header">
-                 <div className="fc-logo">
-                     <img src="images/favicon.svg" alt="logo" />
-                     <span>fresh call</span>
-                 </div>
-                 <div className="fc-user">
-                     <div className="fc-avatar">S</div>
-                     <span className="fc-username">Sourav ▾</span>
-                 </div>
-             </div>
+            <div className = 'fc-header'>
+                <div className = 'fc-logo'>
+                    <img
+                        alt = 'logo'
+                        src = 'images/favicon.svg' />
+                    <span>fresh call</span>
+                </div>
+                <div className = 'fc-user'>
+                    <div className = 'fc-avatar'>S</div>
+                    <span className = 'fc-username'>Sourav ▾</span>
+                </div>
+            </div>
 
-             <div className="fc-main-content">
-                  <div className="fc-left-panel">
-                       <div className="fc-preview-wrapper">
-                           <Preview videoMuted={videoMuted} videoTrack={videoTrack} />
-                           
-                           <div className="fc-bg-effects-pill">
-                               ✨ Background effects
-                           </div>
-                           <div className="fc-preview-toolbox">
-                               {_buttons.length > 0 && <Toolbox toolbarButtons={_buttons} />}
-                           </div>
-                       </div>
-                  </div>
-                  
-                  <div className="fc-right-panel">
-                       <h3 className="fc-prejoin-title">You're about to join</h3>
-                       <h1 className="fc-room-name">{_roomName}</h1>
-                       
-                       <div className="fc-date-info">
-                           <img src="images/calendar.svg" alt="cal" className="fc-cal-icon" /> Sep 29, 2026 &nbsp;|&nbsp; 1:01 PM – 6:11 PM (IST)
-                       </div>
-                       
-                       <div className="fc-info-banner">
-                           <span className="fc-info-icon">ℹ️</span> Check your audio and video settings before joining.
-                       </div>
-                       
-                       <div className="fc-form-area">
-                            <label className="fc-label">Your name</label>
-                            {children}
-                       </div>
-                  </div>
-             </div>
+            <div className = 'fc-main-content'>
+                <div className = 'fc-left-panel'>
+                    <div className = 'fc-preview-wrapper'>
+                        <Preview
+                            videoMuted = { videoMuted }
+                            videoTrack = { videoTrack } />
+
+                        <div
+                            className = 'fc-bg-effects-pill'
+                            onClick = { onBgClick }
+                            style = {{ cursor: 'pointer' }}>
+                            ✨ Background effects
+                        </div>
+                        <div className = 'fc-preview-toolbox'>
+                            {_buttons.length > 0 && <Toolbox toolbarButtons = { _buttons } />}
+                        </div>
+                    </div>
+                </div>
+
+                <div className = 'fc-right-panel'>
+                    <h3 className = 'fc-prejoin-title'>You're about to join</h3>
+                    <h1 className = 'fc-room-name'>{_roomName}</h1>
+
+                    <div className = 'fc-date-info'>
+                        <img
+                            alt = 'cal'
+                            className = 'fc-cal-icon'
+                            src = 'images/calendar.svg' /> {timeDisplay}
+                    </div>
+
+                    <div className = 'fc-info-banner'>
+                        <span className = 'fc-info-icon'>ℹ️</span> Check your audio and video settings before joining.
+                    </div>
+
+                    <div className = 'fc-form-area'>
+                        <label className = 'fc-label'>Your name</label>
+                        {children}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

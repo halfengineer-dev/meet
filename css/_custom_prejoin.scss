@@ -247,13 +247,31 @@
   font-size: 14px;
   color: #334155;
   cursor: pointer;
+  position: relative;
   
   &:hover {
     background: #f8fafc;
   }
   
+  .fc-hidden-select {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    border: none;
+    font-size: 14px;
+    color: #334155;
+    outline: none;
+    cursor: pointer;
+    z-index: 2;
+  }
+
   .fc-select-arrow {
     color: #94a3b8;
+    position: absolute;
+    right: 16px;
+    z-index: 1;
+    pointer-events: none;
   }
 }
 
@@ -323,7 +341,8 @@
     justify-content: center;
   }
 
-  div[role="button"], button[aria-label="Join meeting"] {
+  .fc-btn-join {
+    flex: 1;
     width: 100% !important;
     background: #1764ff !important;
     border-radius: 8px !important;
@@ -336,6 +355,17 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      background: #1251cc !important;
+    }
+    
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
     
     &:hover {
       background: #0052cc !important;
