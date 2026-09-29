@@ -145,7 +145,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         super.componentDidMount();
 
         document.body.classList.add('welcome-page');
-        document.title = interfaceConfig.APP_NAME;
+        document.title = 'Fresh Call';
 
         if (this.state.generateRoomNames) {
             this._updateRoomName();
@@ -197,110 +197,118 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         const footerClassName = DISPLAY_WELCOME_FOOTER ? 'with-footer' : 'without-footer';
 
         return (
-            <div
-                className = { `welcome ${contentClassName} ${footerClassName}` }
-                id = 'welcome_page'>
-                <div className = 'header'>
-                    <div className = 'header-image' />
-                    <div className = 'header-container'>
-                        <div className = 'header-watermark-container'>
-                            <div className = 'welcome-watermark'>
-                                <Watermarks
-                                    defaultJitsiLogoURL = { DEFAULT_WELCOME_PAGE_LOGO_URL }
-                                    noMargins = { true } />
-                            </div>
+            <div className="custom-welcome-page">
+                <nav className="navbar">
+                    <div className="nav-left">
+                        <div className="logo-icon">
+                            <svg viewBox="0 0 24 24" width="24" height="24" fill="white">
+                                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
+                            </svg>
                         </div>
-                        <div className = 'welcome-page-settings'>
-                            <SettingsButton
-                                defaultTab = { SETTINGS_TABS.CALENDAR }
-                                isDisplayedOnWelcomePage = { true } />
-                            {showAdditionalToolbarContent
-                                ? <div
-                                    className = 'settings-toolbar-content'
-                                    ref = { this._setAdditionalToolbarContentRef } />
-                                : null
-                            }
+                        Fresh Call
+                    </div>
+                    <div className="nav-middle">
+                        <a href="#">Resources</a>
+                    </div>
+                    <div className="nav-right">
+                        <a href="#" className="btn-text">Join a meeting</a>
+                        <a href="#" className="btn-text">Host a meeting</a>
+                        <a href="#" className="btn-text">Sign in</a>
+                        <button className="btn-primary-small">Get started free</button>
+                    </div>
+                </nav>
+
+                <div className="hero-section">
+                    <div className="hero-content">
+                        <div className="badge">
+                            <div className="dot"></div>
+                            Video meetings for everyone
                         </div>
-                        <h1 className = 'header-text-title'>
-                            {t('welcomepage.headerTitle')}
+                        <h1>
+                            Connect, collaborate<br/>
+                            and get more done<br/>
+                            with <span>Fresh Call</span>
                         </h1>
-                        <span className = 'header-text-subtitle'>
-                            {t('welcomepage.headerSubtitle')}
-                        </span>
-                        <div id = 'enter_room'>
-                            <div className = 'join-meeting-container'>
-                                <div className = 'enter-room-input-container'>
-                                    <form onSubmit = { this._onFormSubmit }>
-                                        <input
-                                            aria-disabled = 'false'
-                                            aria-label = { t('welcomepage.accessibilityLabel.roomname') }
-                                            autoFocus = { true }
-                                            className = 'enter-room-input'
-                                            id = 'enter_room_field'
-                                            onChange = { this._onRoomChange }
-                                            pattern = { ROOM_NAME_VALIDATE_PATTERN_STR }
-                                            placeholder = { this.state.roomPlaceholder }
-                                            ref = { this._setRoomInputRef }
-                                            type = 'text'
-                                            value = { this.state.room } />
-                                    </form>
-                                </div>
+                        <p className="subtitle">
+                            Secure, reliable and high quality video meetings for teams, businesses and individuals.
+                        </p>
 
-                                <button
-                                    aria-disabled = 'false'
-                                    aria-label = { t('welcomepage.startMeeting') }
-                                    className = 'welcome-page-button'
-                                    id = 'enter_room_button'
-                                    onClick = { this._onFormSubmit }
-                                    tabIndex = { 0 }
-                                    type = 'button'>
-                                    {t('welcomepage.startMeeting')}
-                                </button>
+                        <div className="actions">
+                            <button className="btn-primary" onClick={this._onFormSubmit}>
+                                Start a meeting
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                                    <path d="M5 12h14M12 5l7 7-7 7" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                            </button>
+
+                            <div className="join-input-group">
+                                <form onSubmit={this._onFormSubmit} style={{ display: 'flex', width: '100%' }}>
+                                    <input
+                                        aria-disabled='false'
+                                        aria-label={t('welcomepage.accessibilityLabel.roomname')}
+                                        autoFocus={true}
+                                        id='enter_room_field'
+                                        onChange={this._onRoomChange}
+                                        pattern={ROOM_NAME_VALIDATE_PATTERN_STR}
+                                        placeholder="Enter meeting code"
+                                        ref={this._setRoomInputRef}
+                                        type='text'
+                                        value={this.state.room}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="btn-secondary"
+                                        onClick={this._onFormSubmit}
+                                    >
+                                        Join a meeting
+                                    </button>
+                                </form>
                             </div>
                         </div>
-                        {this._titleHasNotAllowCharacter && (
-                            <div
-                                className = 'not-allow-title-character-div'
-                                role = 'alert'>
-                                <Icon src = { IconWarning } />
-                                <span className = 'not-allow-title-character-text'>
-                                    {t('welcomepage.roomNameAllowedChars')}
-                                </span>
-                            </div>
-                        )}
-                        {this._renderInsecureRoomNameWarning()}
 
-                        {_moderatedRoomServiceUrl && (
-                            <div id = 'moderated-meetings'>
-                                {
-                                    translateToHTML(
-                                        t, 'welcomepage.moderatedMessage', { url: _moderatedRoomServiceUrl })
-                                }
-                            </div>)}
+                        <div className="perks">
+                            <span>No account required</span>
+                            <span>Free for everyone</span>
+                            <span>Works on any device</span>
+                        </div>
+                    </div>
+
+                    <div className="hero-image">
+                        <img src="./images/homescreen.png" alt="Fresh Call on multiple devices" />
                     </div>
                 </div>
 
-                <div className = 'welcome-cards-container'>
-                    <div className = 'welcome-card-column'>
-                        <div className = 'welcome-tabs welcome-card welcome-card--blue'>
-                            {this._renderTabs()}
+                <div className="features-row">
+                    <div className="feature-item">
+                        <div className="icon">
+                            <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
                         </div>
-                        {showAdditionalCard
-                            ? <div
-                                className = 'welcome-card welcome-card--dark'
-                                ref = { this._setAdditionalCardRef } />
-                            : null}
+                        <h3>HD Video & Audio</h3>
+                        <p>Crystal clear meetings</p>
                     </div>
-
-                    {showAdditionalContent
-                        ? <div
-                            className = 'welcome-page-content'
-                            ref = { this._setAdditionalContentRef } />
-                        : null}
+                    <div className="feature-item">
+                        <div className="icon">
+                            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+                        </div>
+                        <h3>Secure by default</h3>
+                        <p>End to end encryption</p>
+                    </div>
+                    <div className="feature-item">
+                        <div className="icon">
+                            <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                        </div>
+                        <h3>Meet with anyone</h3>
+                        <p>No account required</p>
+                    </div>
+                    <div className="feature-item">
+                        <div className="icon">
+                            <svg viewBox="0 0 24 24"><path d="M4 6h18V4H4c-1.1 0-2 .9-2 2v11H0v3h14v-3H4V6zm19 2h-6c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V9c0-.55-.45-1-1-1zm-1 9h-4v-7h4v7z"/></svg>
+                        </div>
+                        <h3>Works everywhere</h3>
+                        <p>Web, iOS, Android, Desktop</p>
+                    </div>
                 </div>
-                {DISPLAY_WELCOME_FOOTER && this._renderFooter()}
             </div>
-
         );
     }
 

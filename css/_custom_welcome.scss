@@ -1,0 +1,351 @@
+body.welcome-page {
+  font-family: 'Outfit', sans-serif !important;
+  background: linear-gradient(180deg, #f0f6fc 0%, #e1efff 100%);
+  margin: 0;
+  padding: 0;
+  color: #1a1a1a;
+  overflow-x: hidden;
+}
+
+.custom-welcome-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+.custom-welcome-page .navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(20px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.custom-welcome-page .nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 26px;
+  font-weight: 800;
+  color: #0b2240;
+  letter-spacing: -0.5px;
+}
+
+.custom-welcome-page .logo-icon {
+  width: 40px;
+  height: 40px;
+  background: #0056fd;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.custom-welcome-page .nav-middle {
+  display: flex;
+  gap: 30px;
+}
+
+.custom-welcome-page .nav-middle a,
+.custom-welcome-page .nav-right a.btn-text {
+  color: #334155;
+  font-weight: 500;
+  text-decoration: none;
+  font-size: 15px;
+  transition: color 0.3s ease;
+}
+.custom-welcome-page .nav-middle a:hover,
+.custom-welcome-page .nav-right a.btn-text:hover {
+  color: #0056fd;
+}
+
+.custom-welcome-page .nav-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.custom-welcome-page .btn-primary-small {
+  background: #0056fd;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+}
+.custom-welcome-page .btn-primary-small:hover {
+  background: #0044cc;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,86,253,0.3);
+}
+
+.custom-welcome-page .hero-section {
+  display: flex;
+  padding: 80px 40px 100px;
+  align-items: center;
+  justify-content: space-between;
+  flex: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.custom-welcome-page .hero-content {
+  flex: 1;
+  max-width: 650px;
+  animation: fadeInUp 0.8s ease backwards;
+}
+
+.custom-welcome-page .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #e6f0ff;
+  color: #0056fd;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 30px;
+}
+.custom-welcome-page .badge .dot {
+  width: 8px;
+  height: 8px;
+  background: #00d26a;
+  border-radius: 50%;
+}
+
+.custom-welcome-page .hero-content h1 {
+  font-size: 68px;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0 0 24px 0;
+  color: #0f172a;
+  letter-spacing: -1.5px;
+}
+.custom-welcome-page .hero-content h1 span {
+  color: #0056fd;
+}
+
+.custom-welcome-page .hero-content p.subtitle {
+  font-size: 22px;
+  color: #64748b;
+  margin-bottom: 40px;
+  line-height: 1.5;
+  font-weight: 400;
+  max-width: 540px;
+}
+
+.custom-welcome-page .actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 30px;
+}
+
+.custom-welcome-page .join-input-group {
+  display: flex;
+  align-items: center;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  padding: 6px;
+  padding-left: 16px;
+  transition: all 0.3s ease;
+  flex: 1;
+  max-width: 320px;
+}
+.custom-welcome-page .join-input-group:focus-within {
+  border-color: #0056fd;
+  box-shadow: 0 0 0 3px rgba(0,86,253,0.1);
+}
+
+.custom-welcome-page .join-input-group input {
+  border: none;
+  outline: none;
+  font-size: 16px;
+  font-family: 'Outfit', sans-serif;
+  width: 100%;
+  background: transparent;
+  color: #0f172a;
+}
+.custom-welcome-page .join-input-group input::placeholder {
+  color: #94a3b8;
+}
+
+.custom-welcome-page .btn-secondary {
+  background: transparent;
+  color: #0f172a;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+}
+.custom-welcome-page .btn-secondary:hover {
+  background: #f1f5f9;
+}
+
+.custom-welcome-page .btn-primary {
+  background: #0056fd;
+  color: white;
+  border: none;
+  padding: 18px 36px;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+  font-family: 'Outfit', sans-serif;
+}
+.custom-welcome-page .btn-primary:hover {
+  background: #0044cc;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,86,253,0.3);
+}
+
+.custom-welcome-page .perks {
+  display: flex;
+  align-items: center;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+}
+.custom-welcome-page .perks span {
+  display: inline-flex;
+  align-items: center;
+}
+.custom-welcome-page .perks span::after {
+  content: '•';
+  margin: 0 10px;
+  color: #cbd5e1;
+}
+.custom-welcome-page .perks span:last-child::after {
+  display: none;
+}
+
+.custom-welcome-page .hero-image {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeInUp 1s ease backwards 0.2s;
+  position: relative;
+  z-index: 2;
+}
+
+.custom-welcome-page .hero-image img {
+  max-width: 130%;
+  height: auto;
+  object-fit: contain;
+  margin-right: -100px;
+  filter: drop-shadow(0 20px 40px rgba(0,0,0,0.1));
+}
+
+.custom-welcome-page .features-row {
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  padding: 50px 40px;
+  position: relative;
+  z-index: 3;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.02);
+}
+
+.custom-welcome-page .feature-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+  flex: 1;
+}
+
+.custom-welcome-page .feature-item .icon {
+  width: 64px;
+  height: 64px;
+  background: #f0f6fc;
+  color: #0056fd;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.custom-welcome-page .feature-item .icon svg {
+  width: 32px;
+  height: 32px;
+  fill: currentColor;
+}
+
+.custom-welcome-page .feature-item h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.custom-welcome-page .feature-item p {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 400;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 1024px) {
+  .custom-welcome-page .hero-section {
+    flex-direction: column;
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .custom-welcome-page .hero-content {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 40px;
+  }
+  .custom-welcome-page .actions {
+    flex-direction: column;
+    width: 100%;
+    max-width: 400px;
+  }
+  .custom-welcome-page .join-input-group {
+    max-width: 100%;
+  }
+  .custom-welcome-page .btn-primary {
+    width: 100%;
+  }
+  .custom-welcome-page .hero-image img {
+    max-width: 100%;
+    margin-right: 0;
+  }
+  .custom-welcome-page .features-row {
+    flex-direction: column;
+    gap: 40px;
+  }
+  .custom-welcome-page .nav-middle {
+    display: none;
+  }
+}

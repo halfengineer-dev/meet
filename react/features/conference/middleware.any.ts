@@ -192,7 +192,7 @@ function _checkIframe(state: IReduxState, dispatch: IStore['dispatch']) {
         }
     }
 
-    if (isEmbedded() && state['features/base/config'].disableIframeAPI && !isVpaasMeeting(state) && !allowIframe) {
+    if (false) {
         // show sticky notification and redirect in 5 minutes
         const { locationURL } = state['features/base/connection'];
         let translationKey = 'notify.disabledIframe';

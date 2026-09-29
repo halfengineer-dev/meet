@@ -204,71 +204,51 @@ const PreMeetingScreen = ({
     videoMuted,
     videoTrack
 }: IProps) => {
-    const { classes } = useStyles();
-    const style = _premeetingBackground ? {
-        background: _premeetingBackground,
-        backgroundPosition: 'center',
-        backgroundSize: 'cover'
-    } : {};
-
-    const roomNameRef = useRef<HTMLSpanElement | null>(null);
-    const [ isOverflowing, setIsOverflowing ] = useState(false);
-
-    useEffect(() => {
-        if (roomNameRef.current) {
-            const element = roomNameRef.current;
-            const elementStyles = window.getComputedStyle(element);
-            const elementWidth = Math.floor(parseFloat(elementStyles.width));
-
-            setIsOverflowing(element.scrollWidth > elementWidth + 1);
-        }
-    }, [ _roomName ]);
-
     return (
-        <div className = { clsx('premeeting-screen', classes.container, className) }>
-            <div style = { style }>
-                <div className = { classes.content }>
-                    {_isPreCallTestEnabled && <ConnectionStatus />}
+        <div className = { clsx('fresh-call-prejoin-wrapper', className) }>
+             <div className="fc-header">
+                 <div className="fc-logo">
+                     <img src="images/favicon.svg" alt="logo" />
+                     <span>fresh call</span>
+                 </div>
+                 <div className="fc-user">
+                     <div className="fc-avatar">S</div>
+                     <span className="fc-username">Sourav ▾</span>
+                 </div>
+             </div>
 
-                    <div className = { classes.contentControls }>
-                        <div className = { classes.paddedContent }>
-                            <h1 className = { classes.title }>
-                                {title}
-                            </h1>
-                            {_roomName && (
-                                <span className = { classes.roomNameContainer }>
-                                    {isOverflowing ? (
-                                        <Tooltip content = { _roomName }>
-                                            <span
-                                                className = { classes.roomName }
-                                                ref = { roomNameRef }>
-                                                {_roomName}
-                                            </span>
-                                        </Tooltip>
-                                    ) : (
-                                        <span
-                                            className = { classes.roomName }
-                                            ref = { roomNameRef }>
-                                            {_roomName}
-                                        </span>
-                                    )}
-                                </span>
-                            )}
+             <div className="fc-main-content">
+                  <div className="fc-left-panel">
+                       <div className="fc-preview-wrapper">
+                           <Preview videoMuted={videoMuted} videoTrack={videoTrack} />
+                           
+                           <div className="fc-bg-effects-pill">
+                               ✨ Background effects
+                           </div>
+                           <div className="fc-preview-toolbox">
+                               {_buttons.length > 0 && <Toolbox toolbarButtons={_buttons} />}
+                           </div>
+                       </div>
+                  </div>
+                  
+                  <div className="fc-right-panel">
+                       <h3 className="fc-prejoin-title">You're about to join</h3>
+                       <h1 className="fc-room-name">{_roomName}</h1>
+                       
+                       <div className="fc-date-info">
+                           <img src="images/calendar.svg" alt="cal" className="fc-cal-icon" /> Sep 29, 2026 &nbsp;|&nbsp; 1:01 PM – 6:11 PM (IST)
+                       </div>
+                       
+                       <div className="fc-info-banner">
+                           <span className="fc-info-icon">ℹ️</span> Check your audio and video settings before joining.
+                       </div>
+                       
+                       <div className="fc-form-area">
+                            <label className="fc-label">Your name</label>
                             {children}
-                        </div>
-                        {_buttons.length && <Toolbox toolbarButtons = { _buttons } />}
-                        <div className = { classes.paddedContent }>
-                            {skipPrejoinButton}
-                            {showUnsafeRoomWarning && <UnsafeRoomWarning />}
-                            {showDeviceStatus && <DeviceStatus />}
-                            {showRecordingWarning && <RecordingWarning />}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <Preview
-                videoMuted = { videoMuted }
-                videoTrack = { videoTrack } />
+                       </div>
+                  </div>
+             </div>
         </div>
     );
 };

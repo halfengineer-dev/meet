@@ -447,7 +447,23 @@ const Prejoin = ({
                     </p>
                 </div>}
 
-                <div className = { classes.dropdownContainer }>
+                <div className="fc-device-mockups">
+                    <div className="fc-select">🎤 Default - MacBook Air Microphone <span className="fc-select-arrow">▾</span></div>
+                    <div className="fc-select">📷 FaceTime HD Camera <span className="fc-select-arrow">▾</span></div>
+                    <div className="fc-select">🔊 Default - MacBook Air Speakers <span className="fc-select-arrow">▾</span></div>
+                    <div className="fc-toggle-row">
+                        <span>Enable background effects</span>
+                        <div className="fc-toggle fc-toggle-on"><div className="fc-toggle-knob"></div></div>
+                    </div>
+                    <div className="fc-toggle-row">
+                        <span>Touch up my appearance</span>
+                        <div className="fc-toggle fc-toggle-on"><div className="fc-toggle-knob"></div></div>
+                    </div>
+                </div>
+
+                <div className="fc-actions">
+                    <button className="fc-btn-cancel">Cancel</button>
+                    <div className = { classes.dropdownContainer }>
                     <Popover
                         content = { hasExtraJoinButtons && <div className = { classes.dropdownButtons }>
                             {extraButtonsToRender.map(({ key, ...rest }) => (
@@ -481,6 +497,7 @@ const Prejoin = ({
                             {t('prejoin.joinMeeting')}
                         </ActionButton>
                     </Popover>
+                </div>
                 </div>
             </div>
             {showDialog && (
