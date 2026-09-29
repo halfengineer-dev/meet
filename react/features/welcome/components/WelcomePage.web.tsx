@@ -14,6 +14,7 @@ import SettingsButton from '../../settings/components/web/SettingsButton';
 import { SETTINGS_TABS } from '../../settings/constants';
 
 import { AbstractWelcomePage, IProps, _mapStateToProps } from './AbstractWelcomePage';
+import HostMeetingView from './HostMeetingView.web';
 import JoinMeetingView from './JoinMeetingView.web';
 import Tabs from './Tabs';
 
@@ -218,14 +219,17 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                     </div>
                     <div className = 'nav-right'>
                         <a
-                            className = 'btn-text'
+                            className = {`btn-text ${this.state.showJoinPage ? 'active' : ''}`}
                             href = '#'
                             onClick = { e => {
-                                e.preventDefault(); this.setState({ showJoinPage: true });
+                                e.preventDefault(); this.setState({ showJoinPage: true, showHostPage: false });
                             } }>Join a meeting</a>
                         <a
-                            className = 'btn-text'
-                            href = '#'>Host a meeting</a>
+                            className = {`btn-text ${this.state.showHostPage ? 'active' : ''}`}
+                            href = '#'
+                            onClick = { e => {
+                                e.preventDefault(); this.setState({ showHostPage: true, showJoinPage: false });
+                            } }>Host a meeting</a>
                         <a
                             className = 'btn-text'
                             href = '#'>Sign in</a>
@@ -233,7 +237,15 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                     </div>
                 </nav>
 
-                {this.state.showJoinPage ? (
+                {this.state.showHostPage ? (
+                    <HostMeetingView
+                        generatedRoomName = {this.state.generatedRoomName}
+                        onHost = { (r, options) => {
+                            // Currently skipping options application to the backend/client 
+                            // as we just want to join the room with video/audio toggles preset in store
+                            this.setState({ room: r }, () => this._onFormSubmit({ preventDefault: () => {} } as any));
+                        } } />
+                ) : this.state.showJoinPage ? (
                     <JoinMeetingView
                         onJoin = { r => {
                             this.setState({ room: r }, () => this._onFormSubmit({ preventDefault: () => {} } as any));
@@ -257,7 +269,12 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                             <div className = 'actions'>
                                 <button
                                     className = 'btn-primary'
-                                    onClick = { this._onFormSubmit }>
+                                    onClick = { () => {
+                                        this.setState({ 
+                                            showHostPage: true, 
+                                            room: this.state.room || this.state.generatedRoomName 
+                                        });
+                                    } }>
                                     Start a meeting
                                     <svg
                                         fill = 'white'
@@ -275,7 +292,12 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
 
                                 <div className = 'join-input-group'>
                                     <form
-                                        onSubmit = { this._onFormSubmit }
+                                        onSubmit = { (e) => {
+                                            e.preventDefault();
+                                            if (!this._roomInputRef || this._roomInputRef.reportValidity()) {
+                                                this.setState({ showJoinPage: true });
+                                            }
+                                        } }
                                         style = {{ display: 'flex', width: '100%' }}>
                                         <input
                                             aria-disabled = 'false'
@@ -290,7 +312,11 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                             value = { this.state.room } />
                                         <button
                                             className = 'btn-secondary'
-                                            onClick = { this._onFormSubmit }
+                                            onClick = { () => {
+                                                if (!this._roomInputRef || this._roomInputRef.reportValidity()) {
+                                                    this.setState({ showJoinPage: true });
+                                                }
+                                            } }
                                             type = 'button'>
                                             Join a meeting
                                         </button>

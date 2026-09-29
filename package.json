@@ -78,6 +78,7 @@
     "jwt-decode": "2.2.0",
     "lib-jitsi-meet": "https://github.com/jitsi/lib-jitsi-meet/releases/download/v2214.0.0+d18b02a4/lib-jitsi-meet.tgz",
     "lodash-es": "4.18.1",
+    "lucide-react": "^1.48.0",
     "mediasoup-client": "^3.24.1",
     "null-loader": "4.0.1",
     "optional-require": "1.0.3",

@@ -352,3 +352,290 @@ body.welcome-page {
         text-align: center;
     }
 }
+
+/* Host Meeting View */
+.fc-host-meeting-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 40px;
+    padding: 40px;
+    background-color: #f9fafb;
+    min-height: calc(100vh - 72px);
+    width: 100%;
+}
+
+.fc-hm-left {
+    flex: 1;
+    max-width: 800px;
+}
+
+.fc-hm-video-container {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background-color: #1a1a1a;
+    aspect-ratio: 16 / 10;
+    display: flex;
+    flex-direction: column;
+}
+
+.fc-hm-bg-effects-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background-color: rgba(0, 0, 0, 0.6);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fc-hm-video-preview {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.fc-hm-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    padding: 24px 0;
+    background: linear-gradient(to top, rgba(17, 17, 17, 1) 0%, rgba(17, 17, 17, 0.8) 100%);
+    z-index: 2;
+}
+
+.fc-hm-control-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.fc-hm-icon-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    background-color: #333333;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: background-color 0.2s;
+}
+
+.fc-hm-icon-btn:hover {
+    background-color: #444444;
+}
+
+.fc-hm-chevron {
+    position: absolute;
+    right: -8px;
+    top: 20px;
+    color: white;
+    font-size: 10px;
+    background: #444;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fc-hm-control-label {
+    color: white;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.fc-hm-control-sublabel {
+    color: #aaaaaa;
+    font-size: 12px;
+}
+
+.fc-hm-right {
+    width: 440px;
+    background-color: white;
+    border-radius: 12px;
+    padding: 32px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.fc-hm-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 8px 0;
+}
+
+.fc-hm-subtitle {
+    font-size: 15px;
+    color: #6b7280;
+    margin: 0 0 32px 0;
+}
+
+.fc-hm-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.fc-hm-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #111827;
+}
+
+.fc-hm-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.fc-hm-input:focus {
+    border-color: #0056e0;
+}
+
+.fc-hm-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #111827;
+    margin: 16px 0 8px 0;
+}
+
+.fc-hm-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.fc-hm-toggle-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+.fc-hm-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 15px;
+    color: #374151;
+}
+
+.fc-hm-switch {
+    width: 44px;
+    height: 24px;
+    background-color: #d1d5db;
+    border-radius: 12px;
+    position: relative;
+    transition: background-color 0.2s;
+}
+
+.fc-hm-switch.active {
+    background-color: #0056e0;
+}
+
+.fc-hm-switch-knob {
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.fc-hm-switch.active .fc-hm-switch-knob {
+    transform: translateX(20px);
+}
+
+.fc-hm-advanced {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    border-top: 1px solid #f3f4f6;
+    border-bottom: 1px solid #f3f4f6;
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+}
+
+.fc-hm-btn-start {
+    width: 100%;
+    padding: 14px;
+    background-color: #0056e0;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: background-color 0.2s;
+}
+
+.fc-hm-btn-start:hover {
+    background-color: #0046b8;
+}
+
+.fc-hm-btn-copy {
+    width: 100%;
+    padding: 14px;
+    background-color: white;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.fc-hm-btn-copy:hover {
+    background-color: #f9fafb;
+}
+
+@media (max-width: 1024px) {
+    .fc-host-meeting-wrapper {
+        flex-direction: column;
+        padding: 24px;
+    }
+    
+    .fc-hm-left {
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .fc-hm-right {
+        width: 100%;
+    }
+}

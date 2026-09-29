@@ -115,7 +115,7 @@ export function computeCalendarTimerDuration(event?: ICalendarTimerEvent) {
  * @returns {boolean}
  */
 export function isTimeTimerEnabled(state: IReduxState): boolean {
-    return state['features/base/config']?.timeTimer?.enabled !== false;
+    return false; // Disabled completely for Fresh Call
 }
 
 /**

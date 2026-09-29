@@ -72,6 +72,7 @@ interface IState {
     roomPlaceholder: string;
     updateTimeoutId?: number;
     showJoinPage?: boolean;
+    showHostPage?: boolean;
     generateRoomNames?: boolean;
 }
 

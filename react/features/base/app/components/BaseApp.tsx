@@ -184,7 +184,7 @@ export default class BaseApp<P> extends Component<P, IState> {
         const { hasError, route: { component, props }, store } = this.state;
 
         if (hasError) {
-            return null;
+            // return null;
         }
 
         if (store) {

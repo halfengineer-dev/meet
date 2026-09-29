@@ -65,6 +65,11 @@ body.welcome-page {
 .custom-welcome-page .nav-right a.btn-text:hover {
   color: #0056fd;
 }
+.custom-welcome-page .nav-right a.btn-text.active {
+  color: #0056fd;
+  border-bottom: 2px solid #0056fd;
+  padding-bottom: 4px;
+}
 
 .custom-welcome-page .nav-right {
   display: flex;

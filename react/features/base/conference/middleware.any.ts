@@ -275,11 +275,11 @@ function _conferenceFailed({ dispatch, getState }: IStore, next: Function, actio
         // The room hit the limit enforced by the mod_time_restricted Prosody plugin: it was
         // destroyed and cannot be re-created, so there is nothing to retry here and no
         // support link worth showing - the meeting simply ran out of time.
-        dispatch(showErrorNotification({
-            descriptionKey: 'dialog.meetingTimeLimitReached',
-            hideErrorSupportLink: true,
-            titleKey: 'dialog.meetingTimeLimitReachedTitle'
-        }));
+        // dispatch(showErrorNotification({
+        //     descriptionKey: 'dialog.meetingTimeLimitReached',
+        //     hideErrorSupportLink: true,
+        //     titleKey: 'dialog.meetingTimeLimitReachedTitle'
+        // }));
 
         break;
     }
@@ -620,11 +620,11 @@ function _connectionFailed({ dispatch, getState }: IStore, next: Function, actio
         // tried to re-create it. Offering "Rejoin now" here (as the generic
         // conference-request failure below does) would just replay the same
         // refusal — the meeting is over, not temporarily unreachable.
-        dispatch(showErrorNotification({
-            descriptionKey: 'dialog.meetingTimeLimitReached',
-            hideErrorSupportLink: true,
-            titleKey: 'dialog.meetingTimeLimitReachedTitle'
-        }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
+        // dispatch(showErrorNotification({
+        //     descriptionKey: 'dialog.meetingTimeLimitReached',
+        //     hideErrorSupportLink: true,
+        //     titleKey: 'dialog.meetingTimeLimitReachedTitle'
+        // }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
     } else if (error.name === JitsiConnectionErrors.CONFERENCE_REQUEST_FAILED) {
         let notificationAction: Function = showNotification;
         const notificationProps = {
