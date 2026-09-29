@@ -74,7 +74,9 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
                         <div className = 'fc-hm-control-item'>
                             <button className = 'fc-hm-icon-btn' onClick = { () => setMicOn(!micOn) }>
                                 <Mic size={24} color={micOn ? "white" : "red"} />
-                                <div className="fc-hm-chevron">v</div>
+                                <div className="fc-hm-chevron">
+                                    <ChevronDown size={12} color="white" />
+                                </div>
                             </button>
                             <span className = 'fc-hm-control-label'>Microphone</span>
                             <span className = 'fc-hm-control-sublabel'>Default</span>
@@ -83,7 +85,9 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
                         <div className = 'fc-hm-control-item'>
                             <button className = 'fc-hm-icon-btn' onClick = { () => setVideoOn(!videoOn) }>
                                 <Video size={24} color={videoOn ? "white" : "red"} />
-                                <div className="fc-hm-chevron">v</div>
+                                <div className="fc-hm-chevron">
+                                    <ChevronDown size={12} color="white" />
+                                </div>
                             </button>
                             <span className = 'fc-hm-control-label'>Camera</span>
                             <span className = 'fc-hm-control-sublabel'>FaceTime HD</span>
