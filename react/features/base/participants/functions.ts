@@ -199,7 +199,14 @@ export function getParticipantCount(stateful: IStateful) {
         sortedRemoteVirtualScreenshareParticipants
     } = state['features/base/participants'];
 
-    return remote.size - fakeParticipants.size - sortedRemoteVirtualScreenshareParticipants.size + (local ? 1 : 0);
+    let fakeToSubtract = 0;
+    fakeParticipants.forEach((p: any) => {
+        if (p.fakeParticipant !== FakeParticipant.LoadTest) {
+            fakeToSubtract++;
+        }
+    });
+
+    return remote.size - fakeToSubtract - sortedRemoteVirtualScreenshareParticipants.size + (local ? 1 : 0);
 }
 
 /**
