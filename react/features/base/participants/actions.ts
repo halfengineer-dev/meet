@@ -3,6 +3,7 @@ import { showNotification } from '../../notifications/actions';
 import { NOTIFICATION_TIMEOUT_TYPE } from '../../notifications/constants';
 import { IJitsiConference } from '../conference/reducer';
 import { set } from '../redux/functions';
+import RANDOM_NAMES from './names.json';
 
 import {
     DOMINANT_SPEAKER_CHANGED,
@@ -694,8 +695,6 @@ export function updateLocalRecordingStatus(recording: boolean, onlySelf?: boolea
  * @param {string | number} countOrNames - The number of fake participants to add, or a comma-separated list of names.
  * @returns {Function}
  */
-const RANDOM_NAMES = ["Aarav", "Aditya", "Sai", "Arjun", "Krishna", "Ishaan", "Atharva", "Rishi", "Rudra", "Dhruv", "Rohan", "Kabir", "Aryan", "Vivaan", "Dev", "Rahul", "Amit", "Sumit", "Vikram", "Sanjay", "Anil", "Sunil", "Rajesh", "Ramesh", "Suresh", "Ganesh", "Sandeep", "Pradeep", "Ram", "Shyam", "Hari", "Prakash", "Om", "Shiv", "Priya", "Anjali", "Kavya", "Sneha", "Neha", "Pooja", "Aarti", "Shweta", "Megha", "Swati"];
-
 export function addFakeParticipants(countOrNames: string | number) {
     return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
         const state = getState();
@@ -722,7 +721,7 @@ export function addFakeParticipants(countOrNames: string | number) {
                     conference,
                     fakeParticipant: FakeParticipant.LoadTest,
                     id,
-                    name: `${randomName} ${id.substring(0, 3)}`,
+                    name: randomName,
                     role: 'participant'
                 }));
             }
