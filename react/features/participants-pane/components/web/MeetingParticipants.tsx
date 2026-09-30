@@ -103,9 +103,8 @@ function MeetingParticipants({
     const [numFakeParticipants, setNumFakeParticipants] = useState<string>('');
 
     const handleAddFakeParticipants = useCallback(() => {
-        const n = parseInt(numFakeParticipants, 10);
-        if (!isNaN(n) && n > 0) {
-            dispatch(addFakeParticipants(n));
+        if (numFakeParticipants.trim() !== '') {
+            dispatch(addFakeParticipants(numFakeParticipants));
             setNumFakeParticipants('');
         }
     }, [dispatch, numFakeParticipants]);
@@ -133,11 +132,11 @@ function MeetingParticipants({
             {isModerator && (
                 <div style={{ display: 'flex', gap: '8px', margin: '8px 0', alignItems: 'center' }}>
                     <Input
-                        accessibilityLabel = 'Number of fake participants'
+                        accessibilityLabel = 'Number of fake participants or comma separated names'
                         id = 'add-fake-participants-input'
                         onChange = { setNumFakeParticipants }
-                        placeholder = 'Number of fake participants'
-                        type = 'number'
+                        placeholder = 'Number or Names (e.g. 5 or Bob, Alice)'
+                        type = 'text'
                         value = { numFakeParticipants } />
                     <Button
                         accessibilityLabel = 'Add'

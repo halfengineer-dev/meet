@@ -689,25 +689,43 @@ export function updateLocalRecordingStatus(recording: boolean, onlySelf?: boolea
 }
 
 /**
- * Action to add N fake participants for load testing/UI testing.
+ * Action to add N fake participants for load testing/UI testing, or specific named participants.
  *
- * @param {number} n - The number of fake participants to add.
+ * @param {string | number} countOrNames - The number of fake participants to add, or a comma-separated list of names.
  * @returns {Function}
  */
-export function addFakeParticipants(n: number) {
+const RANDOM_NAMES = ["Aarav", "Aditya", "Sai", "Arjun", "Krishna", "Ishaan", "Atharva", "Rishi", "Rudra", "Dhruv", "Rohan", "Kabir", "Aryan", "Vivaan", "Dev", "Rahul", "Amit", "Sumit", "Vikram", "Sanjay", "Anil", "Sunil", "Rajesh", "Ramesh", "Suresh", "Ganesh", "Sandeep", "Pradeep", "Ram", "Shyam", "Hari", "Prakash", "Om", "Shiv", "Priya", "Anjali", "Kavya", "Sneha", "Neha", "Pooja", "Aarti", "Shweta", "Megha", "Swati"];
+
+export function addFakeParticipants(countOrNames: string | number) {
     return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
         const state = getState();
         const conference = state['features/base/conference'].conference;
 
-        for (let i = 0; i < n; i++) {
-            const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
-            dispatch(participantJoined({
-                conference,
-                fakeParticipant: FakeParticipant.LoadTest,
-                id,
-                name: `Fake User ${id.substring(0, 4)}`,
-                role: 'participant'
-            }));
+        if (typeof countOrNames === 'string' && isNaN(Number(countOrNames))) {
+            const names = countOrNames.split(',').map(n => n.trim()).filter(Boolean);
+            names.forEach(name => {
+                const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
+                dispatch(participantJoined({
+                    conference,
+                    fakeParticipant: FakeParticipant.LoadTest,
+                    id,
+                    name,
+                    role: 'participant'
+                }));
+            });
+        } else {
+            const n = Number(countOrNames);
+            for (let i = 0; i < n; i++) {
+                const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
+                const randomName = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
+                dispatch(participantJoined({
+                    conference,
+                    fakeParticipant: FakeParticipant.LoadTest,
+                    id,
+                    name: `${randomName} ${id.substring(0, 3)}`,
+                    role: 'participant'
+                }));
+            }
         }
     };
 }
