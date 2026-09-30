@@ -60,6 +60,7 @@ interface IProps {
     setSearchString: (newValue: string) => void;
     showInviteButton?: boolean;
     sortedParticipantIds?: Array<string>;
+    isModerator?: boolean;
 }
 
 /**
@@ -79,7 +80,8 @@ function MeetingParticipants({
     searchString,
     setSearchString,
     showInviteButton,
-    sortedParticipantIds = []
+    sortedParticipantIds = [],
+    isModerator
 }: IProps) {
     const { t } = useTranslation();
 
@@ -96,7 +98,6 @@ function MeetingParticipants({
     const youText = t('chat.you');
     const isBreakoutRoom = useSelector(isInBreakoutRoom);
     const _isCurrentRoomRenamable = useSelector(isCurrentRoomRenamable);
-    const isModerator = useSelector(isLocalParticipantModerator);
     const dispatch = useDispatch();
 
     const [numFakeParticipants, setNumFakeParticipants] = useState<string>('');
@@ -216,7 +217,8 @@ function _mapStateToProps(state: IReduxState) {
         overflowDrawer,
         participantsCount,
         showInviteButton,
-        sortedParticipantIds
+        sortedParticipantIds,
+        isModerator: isLocalParticipantModerator(state)
     };
 }
 
