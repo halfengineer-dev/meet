@@ -699,32 +699,42 @@ export function addFakeParticipants(countOrNames: string | number) {
     return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
         const state = getState();
         const conference = state['features/base/conference'].conference;
+        const fakeParticipantsList: {id: string, name: string}[] = [];
 
         if (typeof countOrNames === 'string' && isNaN(Number(countOrNames))) {
             const names = countOrNames.split(',').map(n => n.trim()).filter(Boolean);
             names.forEach(name => {
                 const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
-                dispatch(participantJoined({
-                    conference,
-                    fakeParticipant: FakeParticipant.LoadTest,
-                    id,
-                    name,
-                    role: 'participant'
-                }));
+                fakeParticipantsList.push({ id, name });
             });
         } else {
             const n = Number(countOrNames);
             for (let i = 0; i < n; i++) {
                 const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
                 const randomName = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
-                dispatch(participantJoined({
-                    conference,
-                    fakeParticipant: FakeParticipant.LoadTest,
-                    id,
-                    name: randomName,
-                    role: 'participant'
-                }));
+                fakeParticipantsList.push({ id, name: randomName });
             }
+        }
+
+        fakeParticipantsList.forEach(p => {
+            dispatch(participantJoined({
+                conference,
+                fakeParticipant: FakeParticipant.LoadTest,
+                id: p.id,
+                name: p.name,
+                role: 'participant'
+            }));
+        });
+
+        try {
+            if (conference) {
+                conference.sendEndpointMessage('', {
+                    name: 'ADD_FAKE_PARTICIPANTS',
+                    participants: fakeParticipantsList
+                });
+            }
+        } catch (e) {
+            console.error('Failed to broadcast fake participants', e);
         }
     };
 }

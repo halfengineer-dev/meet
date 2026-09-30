@@ -22,7 +22,8 @@ import { getLocalizedDateFormatter } from '../base/i18n/dateUtil';
 import { translateToHTML } from '../base/i18n/functions';
 import i18next from '../base/i18n/i18next';
 import { browser } from '../base/lib-jitsi-meet';
-import { pinParticipant, raiseHand, raiseHandClear } from '../base/participants/actions';
+import { participantJoined, pinParticipant, raiseHand, raiseHandClear } from '../base/participants/actions';
+import { FakeParticipant } from '../base/participants/types';
 import MiddlewareRegistry from '../base/redux/MiddlewareRegistry';
 import StateListenerRegistry from '../base/redux/StateListenerRegistry';
 import { SET_REDUCED_UI } from '../base/responsive-ui/actionTypes';
@@ -83,6 +84,20 @@ MiddlewareRegistry.register(store => next => action => {
             && participant.isModerator()
             && !getDisableLowerHandByModerator(getState())) {
             dispatch(raiseHand(false));
+        } else if (data.name === 'ADD_FAKE_PARTICIPANTS') {
+            const { participants } = data;
+            if (Array.isArray(participants)) {
+                const conference = getState()['features/base/conference'].conference;
+                participants.forEach((p: any) => {
+                    dispatch(participantJoined({
+                        conference,
+                        fakeParticipant: FakeParticipant.LoadTest,
+                        id: p.id,
+                        name: p.name,
+                        role: 'participant'
+                    }));
+                });
+            }
         }
         break;
     }
