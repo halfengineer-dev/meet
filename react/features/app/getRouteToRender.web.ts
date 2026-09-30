@@ -63,7 +63,7 @@ function _getWebConferenceRoute(state: IReduxState): Promise<any> | undefined {
             if (deepLinkComponent) {
                 route.component = deepLinkComponent;
             } else if (isSupportedBrowser()) {
-                route.component = FreshCallMeeting; // Bypassing Jitsi Conference for Custom Backend
+                route.component = Conference; 
             } else {
                 route.component = UnsupportedDesktopBrowser;
             }
