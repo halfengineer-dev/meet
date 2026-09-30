@@ -61,7 +61,7 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
     };
 
     const handleSettingsClick = () => {
-        dispatch(openSettingsDialog(SETTINGS_TABS.DEVICES));
+        dispatch(openSettingsDialog(SETTINGS_TABS.AUDIO));
     };
 
     const handleBgEffectsClick = () => {

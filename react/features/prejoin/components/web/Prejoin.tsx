@@ -454,7 +454,7 @@ const Prejoin = ({
                         <select
                             className = 'fc-hidden-select'
                             onChange = { e => dispatchUpdateSettings({ micDeviceId: e.target.value }) }
-                            value = { settings.micDeviceId || '' }>
+                            value = { (settings.micDeviceId as string) || '' }>
                             {(availableDevices.audioInput || []).map(d => (
                                 <option
                                     key = { d.deviceId }
@@ -467,7 +467,7 @@ const Prejoin = ({
                         <select
                             className = 'fc-hidden-select'
                             onChange = { e => dispatchUpdateSettings({ cameraDeviceId: e.target.value }) }
-                            value = { settings.cameraDeviceId || '' }>
+                            value = { (settings.cameraDeviceId as string) || '' }>
                             {(availableDevices.videoInput || []).map(d => (
                                 <option
                                     key = { d.deviceId }

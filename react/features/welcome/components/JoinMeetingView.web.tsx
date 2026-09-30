@@ -120,7 +120,7 @@ export default function JoinMeetingView({ onJoin }: IProps) {
                             src = { IconMic } />
                         <select
                             onChange = { e => dispatch(updateSettings({ micDeviceId: e.target.value })) }
-                            value = { settings.micDeviceId || '' }>
+                            value = { (settings.micDeviceId as string) || '' }>
                             {(availableDevices?.audioInput || []).map((d: any) => (
                                 <option
                                     key = { d.deviceId }
@@ -137,7 +137,7 @@ export default function JoinMeetingView({ onJoin }: IProps) {
                             src = { IconVideo } />
                         <select
                             onChange = { e => dispatch(updateSettings({ cameraDeviceId: e.target.value })) }
-                            value = { settings.cameraDeviceId || '' }>
+                            value = { (settings.cameraDeviceId as string) || '' }>
                             {(availableDevices?.videoInput || []).map((d: any) => (
                                 <option
                                     key = { d.deviceId }

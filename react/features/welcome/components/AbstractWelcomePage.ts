@@ -73,7 +73,6 @@ interface IState {
     updateTimeoutId?: number;
     showJoinPage?: boolean;
     showHostPage?: boolean;
-    generateRoomNames?: boolean;
 }
 
 /**

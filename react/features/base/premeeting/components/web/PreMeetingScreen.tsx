@@ -12,8 +12,8 @@ import Toolbox from '../../../../toolbox/components/web/Toolbox';
 import { isButtonEnabled } from '../../../../toolbox/functions.web';
 import { getConferenceName } from '../../../conference/functions';
 import { PREMEETING_BUTTONS, THIRD_PARTY_PREJOIN_BUTTONS } from '../../../config/constants';
-import { openSettingsDialog } from '../../../settings/actions';
-import { SETTINGS_TABS } from '../../../settings/constants';
+import { openSettingsDialog } from '../../../../settings/actions.web';
+import { SETTINGS_TABS } from '../../../../settings/constants';
 import Tooltip from '../../../tooltip/components/Tooltip';
 import { isPreCallTestEnabled } from '../../functions';
 
