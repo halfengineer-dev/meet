@@ -305,7 +305,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                                 this.setState({ showJoinPage: true });
                                             }
                                         } }
-                                        style = {{ display: 'flex', width: '100%' }}>
+                                        className = 'join-meeting-form'>
                                         <input
                                             aria-disabled = 'false'
                                             aria-label = { t('welcomepage.accessibilityLabel.roomname') }

@@ -8,6 +8,9 @@
   font-family: 'Inter', -apple-system, sans-serif;
   color: #1a1a1a;
   box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 
   * {
     box-sizing: border-box;

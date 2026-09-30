@@ -176,6 +176,11 @@ body.welcome-page {
   box-shadow: 0 0 0 3px rgba(0,86,253,0.1);
 }
 
+.custom-welcome-page .join-meeting-form {
+  display: flex;
+  width: 100%;
+}
+
 .custom-welcome-page .join-input-group input {
   border: none;
   outline: none;
@@ -320,6 +325,16 @@ body.welcome-page {
 }
 
 @media (max-width: 1024px) {
+  .custom-welcome-page .navbar {
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    gap: 16px;
+  }
+  .custom-welcome-page .nav-right {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
   .custom-welcome-page .hero-section {
     flex-direction: column;
     text-align: center;
@@ -352,5 +367,43 @@ body.welcome-page {
   }
   .custom-welcome-page .nav-middle {
     display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .custom-welcome-page .hero-content h1 {
+    font-size: 42px;
+  }
+  .custom-welcome-page .nav-right {
+    gap: 12px;
+  }
+  .custom-welcome-page .nav-right a.btn-text {
+    font-size: 14px;
+  }
+  .custom-welcome-page .btn-primary-small {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  .custom-welcome-page .join-meeting-form {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .custom-welcome-page .join-input-group {
+    padding: 8px;
+    border: none;
+    background: transparent;
+  }
+  .custom-welcome-page .join-input-group input {
+    background: white;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .custom-welcome-page .btn-secondary {
+    width: 100%;
+    background: #0056fd;
+    color: white;
+    border-radius: 8px;
+    padding: 12px 16px;
   }
 }

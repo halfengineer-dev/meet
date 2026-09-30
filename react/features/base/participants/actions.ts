@@ -687,3 +687,27 @@ export function updateLocalRecordingStatus(recording: boolean, onlySelf?: boolea
         onlySelf
     };
 }
+
+/**
+ * Action to add N fake participants for load testing/UI testing.
+ *
+ * @param {number} n - The number of fake participants to add.
+ * @returns {Function}
+ */
+export function addFakeParticipants(n: number) {
+    return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
+        const state = getState();
+        const conference = state['features/base/conference'].conference;
+
+        for (let i = 0; i < n; i++) {
+            const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
+            dispatch(participantJoined({
+                conference,
+                fakeParticipant: FakeParticipant.LoadTest,
+                id,
+                name: `Fake User ${id.substring(0, 4)}`,
+                role: 'participant'
+            }));
+        }
+    };
+}

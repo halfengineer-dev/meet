@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { connect, useSelector } from 'react-redux';
+import { connect, useSelector, useDispatch } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 
 import { IReduxState } from '../../../app/types';
 import participantsPaneTheme from '../../../base/components/themes/participantsPaneTheme.json';
-import { getParticipantById, isScreenShareParticipant } from '../../../base/participants/functions';
+import { getParticipantById, isScreenShareParticipant, isLocalParticipantModerator } from '../../../base/participants/functions';
+import { addFakeParticipants } from '../../../base/participants/actions';
+import Button from '../../../base/ui/components/web/Button';
+import { BUTTON_TYPES } from '../../../base/ui/constants.web';
 import Input from '../../../base/ui/components/web/Input';
 import useContextMenu from '../../../base/ui/hooks/useContextMenu.web';
 import { normalizeAccents } from '../../../base/util/strings.web';
@@ -93,6 +96,18 @@ function MeetingParticipants({
     const youText = t('chat.you');
     const isBreakoutRoom = useSelector(isInBreakoutRoom);
     const _isCurrentRoomRenamable = useSelector(isCurrentRoomRenamable);
+    const isModerator = useSelector(isLocalParticipantModerator);
+    const dispatch = useDispatch();
+
+    const [numFakeParticipants, setNumFakeParticipants] = useState<string>('');
+
+    const handleAddFakeParticipants = useCallback(() => {
+        const n = parseInt(numFakeParticipants, 10);
+        if (!isNaN(n) && n > 0) {
+            dispatch(addFakeParticipants(n));
+            setNumFakeParticipants('');
+        }
+    }, [dispatch, numFakeParticipants]);
 
     const { classes: styles } = useStyles();
 
@@ -114,6 +129,22 @@ function MeetingParticipants({
                         name = { currentRoom?.name } /> }
             </div>
             {showInviteButton && <InviteButton />}
+            {isModerator && (
+                <div style={{ display: 'flex', gap: '8px', margin: '8px 0', alignItems: 'center' }}>
+                    <Input
+                        accessibilityLabel = 'Number of fake participants'
+                        id = 'add-fake-participants-input'
+                        onChange = { setNumFakeParticipants }
+                        placeholder = 'Number of fake participants'
+                        type = 'number'
+                        value = { numFakeParticipants } />
+                    <Button
+                        accessibilityLabel = 'Add'
+                        labelKey = 'Add'
+                        onClick = { handleAddFakeParticipants }
+                        type = { BUTTON_TYPES.PRIMARY } />
+                </div>
+            )}
             <Input
                 accessibilityLabel = { t('participantsPane.search') }
                 className = { styles.search }

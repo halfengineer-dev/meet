@@ -170,43 +170,20 @@ const DeepLinkingMobilePage: React.FC<WithTranslation> = ({ t }) => {
     return (
         <div className = { styles.container }>
             <div className = { styles.contentPane }>
-                {!hideLogo && (<img
-                    alt = { t('welcomepage.logo.logoDeepLinking') }
-                    src = 'images/logo-deep-linking-mobile.png' />
+                {!hideLogo && (
+                    <h1 style={{ color: 'white', marginBottom: '24px', fontSize: '28px' }}>
+                        Fresh Call
+                    </h1>
                 )}
 
                 <div className = { styles.launchingMeetingLabel }>{ t(`${_TNS}.launchMeetingLabel`) }</div>
-                <div className = ''>{room}</div>
-                {showOpenAppButton && (
-                    <a
-                        { ...onOpenLinkProperties }
-                        className = { styles.joinMeetWrapper }
-                        href = { deepLinkingUrl }
-                        onClick = { onOpenApp }
-                        target = '_top'>
+                <div className = { styles.roomNameLabel } style={{ color: 'white', marginBottom: '32px' }}>{room}</div>
+
+                {isSupportedMobileBrowser() ? (
+                    <div className = { styles.joinMeetWrapper } onClick = { onLaunchWeb } style={{ cursor: 'pointer' }}>
                         <Button
                             fullWidth = { true }
-                            label = { t(`${_TNS}.joinInAppNew`) } />
-                    </a>
-                )}
-                <div className = { styles.labelDescription }>{ t(`${_TNS}.noMobileApp`) }</div>
-                <a
-                    { ...onOpenLinkProperties }
-                    className = { styles.linkWrapper }
-                    href = { generateDownloadURL() }
-                    onClick = { onDownloadApp }
-                    target = '_top'>
-                    <div className = { styles.linkLabel }>{ t(`${_TNS}.downloadMobileApp`) }</div>
-                </a>
-                {isSupportedMobileBrowser() ? (
-                    <div className = { styles.supportedBrowserContent }>
-                        <div className = { styles.labelOr }>{ t(`${_TNS}.or`) }</div>
-                        <a
-                            className = { styles.linkWrapper }
-                            onClick = { onLaunchWeb }
-                            target = '_top'>
-                            <div className = { styles.linkLabel }>{ t(`${_TNS}.joinInBrowser`) }</div>
-                        </a>
+                            label = 'Join meeting' />
                     </div>
                 ) : (
                     <div className = { styles.labelDescription }>
