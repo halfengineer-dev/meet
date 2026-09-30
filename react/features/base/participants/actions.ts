@@ -728,10 +728,17 @@ export function addFakeParticipants(countOrNames: string | number) {
 
         try {
             if (conference) {
-                conference.sendEndpointMessage('', {
-                    name: 'ADD_FAKE_PARTICIPANTS',
-                    participants: fakeParticipantsList
-                });
+                const remoteParticipants = state['features/base/participants'].remote;
+                if (remoteParticipants) {
+                    remoteParticipants.forEach((p: any, id: string) => {
+                        if (!p.fakeParticipant) {
+                            conference.sendEndpointMessage(id, {
+                                name: 'ADD_FAKE_PARTICIPANTS',
+                                participants: fakeParticipantsList
+                            });
+                        }
+                    });
+                }
             }
         } catch (e) {
             console.error('Failed to broadcast fake participants', e);

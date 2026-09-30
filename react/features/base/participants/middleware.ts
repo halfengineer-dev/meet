@@ -673,6 +673,28 @@ function _maybePlaySounds({ getState, dispatch }: IStore, action: AnyAction) {
         const { isReplacing, isReplaced } = action.participant;
 
         if (action.type === PARTICIPANT_JOINED) {
+            if (action.participant && !action.participant.local && !action.participant.fakeParticipant) {
+                const isModerator = isLocalParticipantModerator(state);
+                if (isModerator) {
+                    const conference = state['features/base/conference'].conference;
+                    const fakeParticipantsMap = state['features/base/participants'].fakeParticipants;
+                    if (conference && fakeParticipantsMap && fakeParticipantsMap.size > 0) {
+                        const fakeParticipantsList: {id: string, name: string}[] = [];
+                        fakeParticipantsMap.forEach((p: any, id: string) => {
+                            fakeParticipantsList.push({ id, name: p.name });
+                        });
+                        try {
+                            conference.sendEndpointMessage(action.participant.id, {
+                                name: 'ADD_FAKE_PARTICIPANTS',
+                                participants: fakeParticipantsList
+                            });
+                        } catch (e) {
+                            console.error('Failed to sync fake participants to new joiner', e);
+                        }
+                    }
+                }
+            }
+
             if (!joinSound) {
                 return;
             }
