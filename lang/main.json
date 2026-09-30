@@ -570,7 +570,7 @@
         "streamKey": "Live stream key",
         "suggestedAccounts": "Suggested Accounts",
         "suggestedDeals": "Suggested Deals",
-        "thankYou": "Thank you for using {{appName}}!",
+        "thankYou": "Thank you for using Fresh Call!",
         "token": "token",
         "tokenAuthFailed": "Sorry, you're not allowed to join this call.",
         "tokenAuthFailedReason": {

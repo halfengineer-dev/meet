@@ -234,10 +234,7 @@ function _mapStateToProps(state: IReduxState, ownProps: any) {
         JITSI_WATERMARK_LINK,
         SHOW_JITSI_WATERMARK
     } = interfaceConfig;
-    let _showJitsiWatermark = (
-        customizationReady && !customizationFailed
-        && SHOW_JITSI_WATERMARK)
-    || !isValidRoom;
+    let _showJitsiWatermark = false;
     let _logoUrl: string | undefined = logoImageUrl;
     let _logoLink = logoClickUrl;
 
