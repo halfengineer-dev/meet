@@ -250,12 +250,12 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                 fcHostRequirePasscode: options.requirePasscode,
                                 fcHostLiveTranscription: options.liveTranscription
                             }));
-                            this.setState({ room: r }, () => this._onJoin());
+                            this.setState({ room: r + '#config.prejoinConfig.enabled=false' }, () => this._onJoin());
                         } } />
                 ) : this.state.showJoinPage ? (
                     <JoinMeetingView
                         onJoin = { r => {
-                            this.setState({ room: r }, () => this._onJoin());
+                            this.setState({ room: r + '#config.prejoinConfig.enabled=false' }, () => this._onJoin());
                         } } />
                 ) : (
                     <div className = 'hero-section'>
