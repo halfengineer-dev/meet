@@ -66,6 +66,7 @@ import {
     localParticipantJoined,
     localParticipantLeft,
     overwriteParticipantName,
+    participantJoined,
     participantLeft,
     participantUpdated,
     raiseHand,
@@ -94,7 +95,7 @@ import {
 } from './functions';
 import logger from './logger';
 import { PARTICIPANT_JOINED_FILE, PARTICIPANT_LEFT_FILE } from './sounds';
-import { IJitsiParticipant } from './types';
+import { FakeParticipant, IJitsiParticipant } from './types';
 
 import './subscriber';
 
@@ -248,6 +249,28 @@ MiddlewareRegistry.register(store => next => action => {
                     isSilent: startSilent
                 }));
             }
+        }
+
+        const { conference } = action;
+        if (conference) {
+            conference.addCommandListener('ADD_FAKE_PARTICIPANTS', ({ value }: { value: string }, id: string) => {
+                try {
+                    const fakeParticipantsList = JSON.parse(value);
+                    if (Array.isArray(fakeParticipantsList)) {
+                        fakeParticipantsList.forEach(p => {
+                            store.dispatch(participantJoined({
+                                conference,
+                                fakeParticipant: FakeParticipant.LoadTest,
+                                id: p.id,
+                                name: p.name,
+                                role: 'participant'
+                            }));
+                        });
+                    }
+                } catch (e) {
+                    console.error('Failed to parse fake participants command', e);
+                }
+            });
         }
 
         return result;
@@ -673,28 +696,6 @@ function _maybePlaySounds({ getState, dispatch }: IStore, action: AnyAction) {
         const { isReplacing, isReplaced } = action.participant;
 
         if (action.type === PARTICIPANT_JOINED) {
-            if (action.participant && !action.participant.local && !action.participant.fakeParticipant) {
-                const isModerator = isLocalParticipantModerator(state);
-                if (isModerator) {
-                    const conference = state['features/base/conference'].conference;
-                    const fakeParticipantsMap = state['features/base/participants'].fakeParticipants;
-                    if (conference && fakeParticipantsMap && fakeParticipantsMap.size > 0) {
-                        const fakeParticipantsList: {id: string, name: string}[] = [];
-                        fakeParticipantsMap.forEach((p: any, id: string) => {
-                            fakeParticipantsList.push({ id, name: p.name });
-                        });
-                        try {
-                            conference.sendEndpointMessage(action.participant.id, {
-                                name: 'ADD_FAKE_PARTICIPANTS',
-                                participants: fakeParticipantsList
-                            });
-                        } catch (e) {
-                            console.error('Failed to sync fake participants to new joiner', e);
-                        }
-                    }
-                }
-            }
-
             if (!joinSound) {
                 return;
             }

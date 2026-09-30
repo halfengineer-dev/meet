@@ -84,20 +84,6 @@ MiddlewareRegistry.register(store => next => action => {
             && participant.isModerator()
             && !getDisableLowerHandByModerator(getState())) {
             dispatch(raiseHand(false));
-        } else if (data.name === 'ADD_FAKE_PARTICIPANTS') {
-            const { participants } = data;
-            if (Array.isArray(participants)) {
-                const conference = getState()['features/base/conference'].conference;
-                participants.forEach((p: any) => {
-                    dispatch(participantJoined({
-                        conference,
-                        fakeParticipant: FakeParticipant.LoadTest,
-                        id: p.id,
-                        name: p.name,
-                        role: 'participant'
-                    }));
-                });
-            }
         }
         break;
     }
