@@ -7,7 +7,7 @@ import { translate } from '../../base/i18n/functions';
 import { IconShareDoc } from '../../base/icons/svg';
 import { getLocalParticipant } from '../../base/participants/functions';
 import AbstractButton, { IProps as AbstractButtonProps } from '../../base/toolbox/components/AbstractButton';
-import { showErrorNotification, showSuccessNotification } from '../../notifications/actions';
+import { showErrorNotification } from '../../notifications/actions';
 import { NOTIFICATION_TIMEOUT_TYPE, NOTIFICATION_TYPE } from '../../notifications/constants';
 
 import { MAX_SHARED_PDF_SIZE, PDF_STATUS } from '../constants';
@@ -20,11 +20,11 @@ interface IProps extends AbstractButtonProps {
     _isOwner: boolean;
     _conference: any;
     _localParticipantId: string;
-    _fileSharingConfig: any;
 }
 
 /**
  * Implements an {@link AbstractButton} to open or close the Shared PDF feature.
+ * Works locally — reads PDF as a data URL so no backend file hosting is required.
  */
 class SharedPdfButton extends AbstractButton<IProps> {
     override accessibilityLabel = 'toolbar.accessibilityLabel.sharedpdf';
@@ -46,10 +46,14 @@ class SharedPdfButton extends AbstractButton<IProps> {
     override _handleClick() {
         if (this.props._sharingPdf) {
             if (this.props._isOwner) {
+                const state = this.props.store?.getState?.()
+                    ?? (this.props as any)._store?.getState?.();
+                const documentId = state?.['features/shared-pdf']?.documentId ?? '';
+
                 // Stop sharing
                 sendSharePdfCommand({
                     conference: this.props._conference,
-                    documentId: '',
+                    documentId,
                     localParticipantId: this.props._localParticipantId,
                     status: PDF_STATUS.STOP
                 });
@@ -88,76 +92,55 @@ class SharedPdfButton extends AbstractButton<IProps> {
             return;
         }
 
-        const maxFileSize = this.props._fileSharingConfig?.maxFileSize ?? MAX_SHARED_PDF_SIZE;
-
-        if (file.size > maxFileSize) {
+        if (file.size > MAX_SHARED_PDF_SIZE) {
             this.props.dispatch(showErrorNotification({
-                titleKey: 'fileSharing.fileTooLargeTitle',
+                titleKey: 'sharedPdf.fileTooLarge',
                 appearance: NOTIFICATION_TYPE.ERROR
             }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
             return;
         }
 
-        this._uploadPdf(file);
-        
+        this._loadPdfLocally(file);
+
         e.target.value = '';
     }
 
-    private async _uploadPdf(file: File) {
+    /**
+     * Reads the PDF file as a data URL and dispatches the sharing command.
+     * No backend upload required — the PDF is stored in-memory as a blob URL.
+     */
+    private _loadPdfLocally(file: File) {
         const conference = this.props._conference;
-        const sessionId = conference?.getMeetingUniqueId();
-        const apiUrl = this.props._fileSharingConfig?.apiUrl;
         const localParticipantId = this.props._localParticipantId;
+        const documentId = uuidv4();
 
-        if (!apiUrl || !sessionId) {
-            this.props.dispatch(showErrorNotification({
-                titleKey: 'fileSharing.uploadFailedTitle',
-                descriptionKey: 'File sharing API URL is not configured in config.js',
-                appearance: NOTIFICATION_TYPE.ERROR
-            }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
-            return;
-        }
+        const reader = new FileReader();
 
-        try {
-            const token = await conference?.getShortTermCredentials(conference?.getFileSharing()?.getIdentityType());
-            
-            const fileId = uuidv4();
-            const formData = new FormData();
-            
-            const fileMetadata = {
-                authorParticipantId: localParticipantId,
-                fileId,
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: 'pdf',
-                timestamp: Date.now()
-            };
-            
-            formData.append('metadata', JSON.stringify(fileMetadata));
-            formData.append('file', file);
+        reader.onload = () => {
+            const dataUrl = reader.result as string;
 
-            const response = await fetch(`${apiUrl}/sessions/${sessionId}/files`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: formData
-            });
+            // Store the data URL in Redux so SharedPdf component can render it
+            this.props.dispatch(setSharedPdfStatus({
+                documentId,
+                documentUrl: dataUrl,
+                status: PDF_STATUS.OPEN,
+                ownerId: localParticipantId,
+                page: 1,
+                zoom: 1.0,
+                scrollX: 0,
+                scrollY: 0,
+                rotation: 0,
+                presenterMode: true
+            }));
 
-            if (!response.ok) {
-                throw new Error('Upload failed');
-            }
-
-            this.props.dispatch(showSuccessNotification({
-                titleKey: 'sharedPdf.uploadSuccess'
-            }, NOTIFICATION_TIMEOUT_TYPE.SHORT));
-
-            const documentUrl = `${apiUrl}/sessions/${sessionId}/files/${fileId}`;
-            
+            // Send XMPP command to notify other participants
+            // Note: the data URL is NOT sent over XMPP (too large).
+            // For V1, only the presenter sees the PDF. Multi-participant
+            // file transfer will be added in a future version.
             sendSharePdfCommand({
                 conference,
-                documentId: fileId,
-                documentUrl,
+                documentId,
+                documentUrl: `local://${documentId}`,
                 localParticipantId,
                 status: PDF_STATUS.OPEN,
                 page: 1,
@@ -167,14 +150,17 @@ class SharedPdfButton extends AbstractButton<IProps> {
                 rotation: 0,
                 presenterMode: true
             });
+        };
 
-        } catch (error) {
-            console.error('Failed to upload PDF:', error);
+        reader.onerror = () => {
+            console.error('Failed to read PDF file');
             this.props.dispatch(showErrorNotification({
-                titleKey: 'fileSharing.uploadFailedTitle',
+                titleKey: 'sharedPdf.readError',
                 appearance: NOTIFICATION_TYPE.ERROR
             }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
-        }
+        };
+
+        reader.readAsDataURL(file);
     }
 
     override render() {
@@ -202,8 +188,7 @@ function _mapStateToProps(state: IReduxState) {
         _sharingPdf: sharingPdf,
         _isOwner: sharingPdf && ownerId === localParticipantId,
         _conference: state['features/base/conference'].conference,
-        _localParticipantId: localParticipantId ?? '',
-        _fileSharingConfig: state['features/base/config'].fileSharing
+        _localParticipantId: localParticipantId ?? ''
     };
 }
 

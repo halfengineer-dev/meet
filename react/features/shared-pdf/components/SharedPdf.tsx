@@ -1,20 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { connect } from 'react-redux';
-import { Document, Page, pdfjs } from 'react-pdf';
-
-// This is required to set up the worker for pdf.js
-// We can use the unpkg cdn for the worker to avoid webpack config issues for now
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+import React, { useCallback, useMemo } from 'react';
+import { connect, useDispatch } from 'react-redux';
 
 import { IReduxState } from '../../app/types';
 import { getLocalParticipant } from '../../base/participants/functions';
 import { PDF_STATUS } from '../constants';
-import { updateLocalSharedPdfState, togglePdfFollowPresenter } from '../actions';
-import { isPdfSharing } from '../functions';
+import { updateLocalSharedPdfState, togglePdfFollowPresenter, resetSharedPdfStatus } from '../actions';
+import { isPdfSharing, sendSharePdfCommand } from '../functions';
+import { getCurrentConference } from '../../base/conference/functions';
 
 interface IProps {
     documentUrl?: string;
+    documentId?: string;
     isSharing: boolean;
+    isOwner: boolean;
     presenterPage: number;
     presenterZoom: number;
     presenterRotation: number;
@@ -22,48 +20,41 @@ interface IProps {
     localZoom: number;
     localRotation: number;
     followPresenter: boolean;
-    dispatch: Function;
+    localParticipantId: string;
+    conference: any;
 }
 
 /**
- * Implements a React component for rendering a PDF document.
+ * Renders a shared PDF document using an embedded object/iframe.
+ * The PDF is loaded from a data URL stored in Redux (no backend required).
  */
 function SharedPdf(props: IProps) {
     const {
         documentUrl,
+        documentId,
         isSharing,
-        presenterPage,
-        presenterZoom,
-        presenterRotation,
-        localPage,
-        localZoom,
-        localRotation,
-        followPresenter,
-        dispatch
+        isOwner,
+        localParticipantId,
+        conference
     } = props;
 
-    const [numPages, setNumPages] = useState<number | null>(null);
+    const dispatch = useDispatch();
 
-    // Sync local state with presenter state if followPresenter is true
-    useEffect(() => {
-        if (followPresenter) {
-            if (localPage !== presenterPage || localZoom !== presenterZoom || localRotation !== presenterRotation) {
-                dispatch(updateLocalSharedPdfState({
-                    page: presenterPage,
-                    zoom: presenterZoom,
-                    rotation: presenterRotation
-                }));
-            }
+    const handleStopSharing = useCallback(() => {
+        if (isOwner && documentId) {
+            sendSharePdfCommand({
+                conference,
+                documentId,
+                localParticipantId,
+                status: PDF_STATUS.STOP
+            });
+            dispatch(resetSharedPdfStatus());
         }
-    }, [followPresenter, presenterPage, presenterZoom, presenterRotation]);
+    }, [isOwner, documentId, conference, localParticipantId, dispatch]);
 
     if (!isSharing || !documentUrl) {
         return null;
     }
-
-    const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-        setNumPages(numPages);
-    };
 
     return (
         <div style={{
@@ -72,61 +63,60 @@ function SharedPdf(props: IProps) {
             left: 0,
             width: '100%',
             height: '100%',
-            backgroundColor: '#ffffff',
+            backgroundColor: '#2a2a2a',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            overflow: 'auto',
+            justifyContent: 'center',
             zIndex: 10
         }}>
-            <Document
-                file={documentUrl}
-                onLoadSuccess={onDocumentLoadSuccess}
-                loading="Loading PDF..."
-            >
-                <Page
-                    pageNumber={localPage}
-                    scale={localZoom}
-                    rotate={localRotation}
-                    renderTextLayer={true}
-                    renderAnnotationLayer={true}
-                />
-            </Document>
-            {/* Minimal controls for demonstration, in a real implementation we'd add toolbar buttons */}
+            {/* PDF rendered via embed for full native browser PDF viewer */}
+            <embed
+                src={documentUrl}
+                type='application/pdf'
+                style={{
+                    width: '100%',
+                    height: 'calc(100% - 50px)',
+                    border: 'none'
+                }}
+            />
+            {/* Bottom control bar */}
             <div style={{
-                position: 'absolute',
-                bottom: 20,
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                color: 'white',
-                padding: '10px',
-                borderRadius: '5px',
+                height: '50px',
+                width: '100%',
+                backgroundColor: 'rgba(0,0,0,0.7)',
                 display: 'flex',
-                gap: '10px'
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '16px',
+                padding: '0 16px'
             }}>
-                <button 
-                    onClick={() => dispatch(updateLocalSharedPdfState({ page: Math.max(localPage - 1, 1) }))}
-                    disabled={localPage <= 1}
-                >
-                    Prev
-                </button>
-                <span>Page {localPage} of {numPages ?? '--'}</span>
-                <button 
-                    onClick={() => dispatch(updateLocalSharedPdfState({ page: Math.min(localPage + 1, numPages ?? localPage) }))}
-                    disabled={numPages !== null && localPage >= numPages}
-                >
-                    Next
-                </button>
-                <button onClick={() => dispatch(updateLocalSharedPdfState({ zoom: localZoom + 0.25 }))}>Zoom In</button>
-                <button onClick={() => dispatch(updateLocalSharedPdfState({ zoom: Math.max(localZoom - 0.25, 0.25) }))}>Zoom Out</button>
-                <button onClick={() => dispatch(updateLocalSharedPdfState({ rotation: (localRotation + 90) % 360 }))}>Rotate</button>
-                <label>
-                    <input 
-                        type="checkbox" 
-                        checked={followPresenter} 
-                        onChange={() => dispatch(togglePdfFollowPresenter())} 
-                    />
-                    Follow Presenter
-                </label>
+                <span style={{
+                    color: '#ffffff',
+                    fontSize: '14px',
+                    fontWeight: 500
+                }}>
+                    📄 PDF Shared
+                </span>
+                {isOwner && (
+                    <button
+                        onClick={handleStopSharing}
+                        style={{
+                            backgroundColor: '#location',
+                            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '6px 16px',
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'opacity 0.2s'
+                        }}
+                    >
+                        Stop Sharing
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -134,16 +124,22 @@ function SharedPdf(props: IProps) {
 
 function mapStateToProps(state: IReduxState) {
     const sharedPdfState = state['features/shared-pdf'];
+    const localParticipant = getLocalParticipant(state);
+
     return {
-        isSharing: isPdfSharing(state),
-        documentUrl: sharedPdfState.documentUrl,
-        presenterPage: sharedPdfState.presenterPage ?? 1,
-        presenterZoom: sharedPdfState.presenterZoom ?? 1.0,
-        presenterRotation: sharedPdfState.presenterRotation ?? 0,
-        localPage: sharedPdfState.localPage ?? 1,
-        localZoom: sharedPdfState.localZoom ?? 1.0,
-        localRotation: sharedPdfState.localRotation ?? 0,
-        followPresenter: sharedPdfState.followPresenter
+        isSharing: sharedPdfState?.status === PDF_STATUS.OPEN,
+        documentUrl: sharedPdfState?.documentUrl,
+        documentId: sharedPdfState?.documentId,
+        isOwner: sharedPdfState?.ownerId === localParticipant?.id,
+        presenterPage: sharedPdfState?.presenterPage ?? 1,
+        presenterZoom: sharedPdfState?.presenterZoom ?? 1.0,
+        presenterRotation: sharedPdfState?.presenterRotation ?? 0,
+        localPage: sharedPdfState?.localPage ?? 1,
+        localZoom: sharedPdfState?.localZoom ?? 1.0,
+        localRotation: sharedPdfState?.localRotation ?? 0,
+        followPresenter: sharedPdfState?.followPresenter ?? true,
+        localParticipantId: localParticipant?.id ?? '',
+        conference: getCurrentConference(state)
     };
 }
 
