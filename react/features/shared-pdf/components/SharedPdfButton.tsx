@@ -108,6 +108,7 @@ class SharedPdfButton extends AbstractButton<IProps> {
 
         // Create a blob URL — instant, no FileReader needed
         const blobUrl = URL.createObjectURL(file);
+        console.log("PDF DEBUG: generated blobUrl", blobUrl);
 
         // 1. Create a fake participant for the PDF (so it shows in the large video area)
         this.props.dispatch(participantJoined({
@@ -116,9 +117,11 @@ class SharedPdfButton extends AbstractButton<IProps> {
             id: documentId,
             name: SHARED_PDF_PARTICIPANT_NAME
         }));
+        console.log("PDF DEBUG: dispatched participantJoined");
 
         // 2. Pin the PDF participant so it takes over the large video area
         this.props.dispatch(pinParticipant(documentId));
+        console.log("PDF DEBUG: dispatched pinParticipant");
 
         // 3. Set the shared PDF status with the blob URL
         this.props.dispatch(setSharedPdfStatus({
@@ -133,6 +136,7 @@ class SharedPdfButton extends AbstractButton<IProps> {
             rotation: 0,
             presenterMode: true
         }));
+        console.log("PDF DEBUG: dispatched setSharedPdfStatus");
     }
 
     override render() {
