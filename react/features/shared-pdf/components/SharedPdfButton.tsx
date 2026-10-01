@@ -110,6 +110,11 @@ class SharedPdfButton extends AbstractButton<IProps> {
         const localParticipantId = this.props._localParticipantId;
 
         if (!apiUrl || !sessionId) {
+            this.props.dispatch(showErrorNotification({
+                titleKey: 'fileSharing.uploadFailedTitle',
+                descriptionKey: 'File sharing API URL is not configured in config.js',
+                appearance: NOTIFICATION_TYPE.ERROR
+            }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
             return;
         }
 
