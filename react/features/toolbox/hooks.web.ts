@@ -54,6 +54,7 @@ import { isScreenAudioSupported, isScreenVideoShared } from '../screen-share/fun
 import { useSecurityDialogButton } from '../security/hooks.web';
 import SettingsButton from '../settings/components/web/SettingsButton';
 import { useSharedVideoButton } from '../shared-video/hooks';
+import { useSharedBrowserButton } from '../shared-browser/hooks';
 import SpeakerStats from '../speaker-stats/components/web/SpeakerStats';
 import { isSpeakerStatsDisabled } from '../speaker-stats/functions';
 import { useSpeakerStatsButton } from '../speaker-stats/hooks.web';
@@ -302,6 +303,7 @@ export function useToolboxButtons(
     const linktosalesforce = useLinkToSalesforceButton();
     const shareaudio = getShareAudioButton();
     const shareVideo = useSharedVideoButton();
+    const sharedBrowser = useSharedBrowserButton();
     const whiteboard = useWhiteboardButton();
     const etherpad = useEtherpadButton();
     const virtualBackground = useVirtualBackgroundButton();
@@ -339,6 +341,7 @@ export function useToolboxButtons(
         livestreaming: liveStreaming,
         linktosalesforce,
         sharedvideo: shareVideo,
+        sharedbrowser: sharedBrowser,
         shareaudio,
         noisesuppression: noiseSuppression,
         whiteboard,

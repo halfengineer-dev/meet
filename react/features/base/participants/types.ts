@@ -5,7 +5,8 @@ export enum FakeParticipant {
     RemoteScreenShare = 'RemoteScreenShare',
     SharedVideo = 'SharedVideo',
     Whiteboard = 'Whiteboard',
-    LoadTest = 'LoadTest'
+    LoadTest = 'LoadTest',
+    SharedBrowser = 'SharedBrowser'
 }
 
 export interface IParticipant {

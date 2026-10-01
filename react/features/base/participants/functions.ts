@@ -286,6 +286,16 @@ export function isSharedVideoParticipant(participant?: IParticipant): boolean {
 }
 
 /**
+ * Returns whether the participant is a shared browser participant.
+ *
+ * @param {IParticipant|undefined} participant - The participant entity.
+ * @returns {boolean} - True if it's a shared browser participant.
+ */
+export function isSharedBrowserParticipant(participant?: IParticipant): boolean {
+    return participant?.fakeParticipant === FakeParticipant.SharedBrowser;
+}
+
+/**
  * Returns whether the fake participant is a whiteboard.
  *
  * @param {IParticipant|undefined} participant - The participant entity.

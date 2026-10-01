@@ -31,6 +31,7 @@ type ButtonsWithNotifyClick = 'camera' |
     'settings' |
     'shareaudio' |
     'sharedvideo' |
+    'sharedbrowser' |
     'shortcuts' |
     'stats' |
     'tileview' |
