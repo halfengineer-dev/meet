@@ -255,16 +255,27 @@ MiddlewareRegistry.register(store => next => action => {
         if (conference) {
             conference.addCommandListener('ADD_FAKE_PARTICIPANTS', ({ value }: { value: string }, id: string) => {
                 try {
+                    // Skip processing our own commands to avoid duplicate additions
+                    const localId = getLocalParticipant(store.getState())?.id;
+
+                    if (id === localId) {
+                        return;
+                    }
+
                     const fakeParticipantsList = JSON.parse(value);
+
                     if (Array.isArray(fakeParticipantsList)) {
                         fakeParticipantsList.forEach(p => {
-                            store.dispatch(participantJoined({
-                                conference,
-                                fakeParticipant: FakeParticipant.LoadTest,
-                                id: p.id,
-                                name: p.name,
-                                role: 'participant'
-                            }));
+                            // Only add if this participant doesn't already exist
+                            if (!getParticipantById(store.getState(), p.id)) {
+                                store.dispatch(participantJoined({
+                                    conference,
+                                    fakeParticipant: FakeParticipant.LoadTest,
+                                    id: p.id,
+                                    name: p.name,
+                                    role: 'participant'
+                                }));
+                            }
                         });
                     }
                 } catch (e) {

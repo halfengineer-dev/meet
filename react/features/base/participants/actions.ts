@@ -728,11 +728,16 @@ export function addFakeParticipants(countOrNames: string | number) {
 
         try {
             if (conference) {
+                // Read from updated state to include both existing and newly added fake participants
+                const updatedState = getState();
                 const allFakeParticipantsList: {id: string, name: string}[] = [];
-                const existingFake = state['features/base/participants'].fakeParticipants;
+                const existingFake = updatedState['features/base/participants'].fakeParticipants;
+
                 if (existingFake) {
                     existingFake.forEach((p: any, id: string) => {
-                        allFakeParticipantsList.push({ id, name: p.name });
+                        if (p.fakeParticipant === FakeParticipant.LoadTest) {
+                            allFakeParticipantsList.push({ id, name: p.name });
+                        }
                     });
                 }
                 conference.sendCommand('ADD_FAKE_PARTICIPANTS', {

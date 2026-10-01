@@ -12,12 +12,13 @@ import { INVITE_ENABLED, PARTICIPANTS_ENABLED } from '../base/flags/constants';
 import { getFeatureFlag } from '../base/flags/functions';
 import {
     getDominantSpeakerParticipant,
+    getFakeParticipants,
     getLocalParticipant,
     getRaiseHandsQueue,
     getRemoteParticipantsSorted,
     isLocalParticipantModerator
 } from '../base/participants/functions';
-import { IParticipant } from '../base/participants/types';
+import { FakeParticipant, IParticipant } from '../base/participants/types';
 import { toState } from '../base/redux/functions';
 import {
     isParticipantAudioMuted,
@@ -200,6 +201,7 @@ export function getSortedParticipantIds(stateful: IStateful) {
     const raisedHandParticipants = getRaiseHandsQueue(stateful).map(({ id: particId }) => particId);
     const remoteRaisedHandParticipants = new Set(raisedHandParticipants || []);
     const dominantSpeaker = getDominantSpeakerParticipant(stateful);
+    const fakeParticipants = getFakeParticipants(stateful);
 
     for (const participant of remoteRaisedHandParticipants.keys()) {
         // Avoid duplicates.
@@ -219,12 +221,20 @@ export function getSortedParticipantIds(stateful: IStateful) {
         dominant.push(dominantId);
     }
 
+    const fakeParticipantsList: string[] = [];
+    fakeParticipants.forEach((p: any) => {
+        if (p.fakeParticipant === FakeParticipant.LoadTest) {
+            fakeParticipantsList.push(p.id);
+        }
+    });
+
     // Move self and participants with raised hand to the top of the list.
     return [
         ...dominant,
         ...local,
         ...Array.from(remoteRaisedHandParticipants.keys()),
-        ...Array.from(reorderedParticipants.keys())
+        ...Array.from(reorderedParticipants.keys()),
+        ...fakeParticipantsList
     ];
 }
 

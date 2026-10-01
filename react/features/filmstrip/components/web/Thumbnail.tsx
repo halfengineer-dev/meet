@@ -868,7 +868,7 @@ class Thumbnail extends Component<IProps, IState> {
      * @returns {ReactElement}
      */
     _renderFakeParticipant() {
-        const { _isMobile, _participant: { avatarURL, pinned, name } } = this.props;
+        const { _isMobile, _participant: { avatarURL, pinned, name, id }, _thumbnailType } = this.props;
         const { isHovered } = this.state;
         const classes = withStyles.getClasses(this.props);
         const styles = this._getStyles();
@@ -902,6 +902,18 @@ class Thumbnail extends Component<IProps, IState> {
                     className = { classes.sharedVideoTopRight }
                     source = { SHARED_VIDEO_SECOND_SCREEN_SOURCE }
                     visible = { isHovered } />
+                <div
+                    className = { clsx(classes.indicatorsContainer,
+                        classes.indicatorsBottomContainer,
+                        _thumbnailType === THUMBNAIL_TYPE.TILE && 'tile-view-mode'
+                    ) }>
+                    <ThumbnailBottomIndicators
+                        className = { classes.indicatorsBackground }
+                        local = { false }
+                        participantId = { id }
+                        showStatusIndicators = { true }
+                        thumbnailType = { _thumbnailType } />
+                </div>
             </span>
         );
     }

@@ -8,6 +8,7 @@ import { isTouchDevice, shouldEnableResize } from '../../../base/environment/uti
 import { translate } from '../../../base/i18n/functions';
 import { IconInfo, IconMessage, IconShareDoc, IconSubtitles } from '../../../base/icons/svg';
 import { getLocalParticipant, getRemoteParticipants, isPrivateChatEnabledSelf } from '../../../base/participants/functions';
+import { FakeParticipant } from '../../../base/participants/types';
 import Select from '../../../base/ui/components/web/Select';
 import Tabs from '../../../base/ui/components/web/Tabs';
 import { arePollsDisabled } from '../../../conference/functions.any';
@@ -303,7 +304,7 @@ const Chat = ({
 
     const options = useMemo(() => {
         const o = Array.from(participants?.values() || [])
-                .filter(p => !p.fakeParticipant)
+                .filter(p => !p.fakeParticipant || p.fakeParticipant === FakeParticipant.LoadTest)
                 .map(p => {
                     return {
                         value: p.id,

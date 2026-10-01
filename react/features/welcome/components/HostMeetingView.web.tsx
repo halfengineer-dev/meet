@@ -7,6 +7,7 @@ import Preview from '../../base/premeeting/components/web/Preview';
 import { updateSettings } from '../../base/settings/actions';
 import { createLocalTracksA } from '../../base/tracks/actions.any';
 import { getLocalJitsiVideoTrack } from '../../base/tracks/functions.web';
+import { copyText } from '../../base/util/copyText.web';
 import { openSettingsDialog } from '../../settings/actions';
 import { SETTINGS_TABS } from '../../settings/constants';
 
@@ -26,6 +27,7 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
     const [ waitingRoom, setWaitingRoom ] = useState(true);
     const [ requirePasscode, setRequirePasscode ] = useState(false);
     const [ liveTranscription, setLiveTranscription ] = useState(false);
+    const [ isCopied, setIsCopied ] = useState(false);
 
     useEffect(() => {
         dispatch(createLocalTracksA({ devices: [ 'video', 'audio' ] }));
@@ -54,10 +56,11 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
         });
     };
 
-    const handleCopyLink = () => {
+    const handleCopyLink = async () => {
         const link = `${window.location.origin}/${generatedRoomName}`;
-        navigator.clipboard.writeText(link);
-        // Could show a toast here
+        await copyText(link);
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
     };
 
     const handleSettingsClick = () => {
@@ -202,7 +205,7 @@ export default function HostMeetingView({ onHost, generatedRoomName }: IProps) {
 
                     <button className = 'fc-hm-btn-copy' onClick = { handleCopyLink }>
                         <Copy size={18} />
-                        Copy invitation link
+                        {isCopied ? 'Copied!' : 'Copy invitation link'}
                     </button>
                 </div>
             </div>

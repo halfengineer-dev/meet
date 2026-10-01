@@ -5,6 +5,7 @@ import { IReduxState } from '../../../app/types';
 import { MEDIA_TYPE } from '../../../base/media/constants';
 import { PARTICIPANT_ROLE } from '../../../base/participants/constants';
 import { getParticipantByIdOrUndefined, isScreenShareParticipantById } from '../../../base/participants/functions';
+import { FakeParticipant } from '../../../base/participants/types';
 import {
     getVideoTrackByParticipant,
     isLocalTrackMuted,
@@ -114,7 +115,7 @@ function _mapStateToProps(state: IReduxState, ownProps: any) {
 
     if (participant?.local) {
         isAudioMuted = isLocalTrackMuted(tracks, MEDIA_TYPE.AUDIO);
-    } else if (!participant?.fakeParticipant || isScreenShareParticipantById(state, participantID)) {
+    } else if (!participant?.fakeParticipant || participant.fakeParticipant === FakeParticipant.LoadTest || isScreenShareParticipantById(state, participantID)) {
         // remote participants excluding shared video
         const track = getVideoTrackByParticipant(state, participant);
 

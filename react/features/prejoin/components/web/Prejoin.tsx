@@ -521,7 +521,13 @@ const Prejoin = ({
                 </div>
 
                 <div className = 'fc-actions'>
-                    <button className = 'fc-btn-cancel'>Cancel</button>
+                    <button
+                        className = 'fc-btn-cancel'
+                        onClick = { () => {
+                            window.location.href = '/';
+                        } }>
+                        Cancel
+                    </button>
                     <button
                         className = 'fc-btn-join'
                         disabled = { joiningInProgress || showErrorOnField }
