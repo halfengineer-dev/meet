@@ -6,13 +6,16 @@ import { IReduxState } from '../../app/types';
 import { translate } from '../../base/i18n/functions';
 import { IconShareDoc } from '../../base/icons/svg';
 import { getLocalParticipant } from '../../base/participants/functions';
+import { participantJoined, pinParticipant } from '../../base/participants/actions';
+import { FakeParticipant } from '../../base/participants/types';
+import { getCurrentConference } from '../../base/conference/functions';
 import AbstractButton, { IProps as AbstractButtonProps } from '../../base/toolbox/components/AbstractButton';
 import { showErrorNotification } from '../../notifications/actions';
 import { NOTIFICATION_TIMEOUT_TYPE, NOTIFICATION_TYPE } from '../../notifications/constants';
 
-import { MAX_SHARED_PDF_SIZE, PDF_STATUS } from '../constants';
-import { isPdfSharing, sendSharePdfCommand } from '../functions';
-import { setSharedPdfStatus } from '../actions';
+import { MAX_SHARED_PDF_SIZE, PDF_STATUS, SHARED_PDF_PARTICIPANT_NAME } from '../constants';
+import { isPdfSharing } from '../functions';
+import { setSharedPdfStatus, resetSharedPdfStatus } from '../actions';
 
 interface IProps extends AbstractButtonProps {
     _isDisabled: boolean;
@@ -25,7 +28,7 @@ interface IProps extends AbstractButtonProps {
 
 /**
  * Implements an {@link AbstractButton} to open or close the Shared PDF feature.
- * Works locally — reads PDF as a data URL so no backend file hosting is required.
+ * Works locally — reads PDF as a blob URL so no backend file hosting is required.
  */
 class SharedPdfButton extends AbstractButton<IProps> {
     override accessibilityLabel = 'toolbar.accessibilityLabel.sharedpdf';
@@ -47,13 +50,7 @@ class SharedPdfButton extends AbstractButton<IProps> {
     override _handleClick() {
         if (this.props._sharingPdf) {
             if (this.props._isOwner) {
-                // Stop sharing
-                sendSharePdfCommand({
-                    conference: this.props._conference,
-                    documentId: this.props._documentId,
-                    localParticipantId: this.props._localParticipantId,
-                    status: PDF_STATUS.STOP
-                });
+                this.props.dispatch(resetSharedPdfStatus());
             } else {
                 this.props.dispatch(showErrorNotification({
                     titleKey: 'sharedPdf.alreadySharing',
@@ -61,7 +58,6 @@ class SharedPdfButton extends AbstractButton<IProps> {
                 }, NOTIFICATION_TIMEOUT_TYPE.SHORT));
             }
         } else {
-            // Trigger file picker
             this.fileInputRef.current?.click();
         }
     }
@@ -97,67 +93,46 @@ class SharedPdfButton extends AbstractButton<IProps> {
             return;
         }
 
-        this._loadPdfLocally(file);
-
+        this._sharePdfLocally(file);
         e.target.value = '';
     }
 
     /**
-     * Reads the PDF file as a data URL and dispatches the sharing command.
-     * No backend upload required — the PDF is stored in-memory as a blob URL.
+     * Reads the PDF file as a blob URL and directly updates Redux state.
+     * No XMPP, no middleware, no race conditions — just local state.
      */
-    private _loadPdfLocally(file: File) {
-        const conference = this.props._conference;
+    private _sharePdfLocally(file: File) {
         const localParticipantId = this.props._localParticipantId;
+        const conference = this.props._conference;
         const documentId = uuidv4();
 
-        const reader = new FileReader();
+        // Create a blob URL — instant, no FileReader needed
+        const blobUrl = URL.createObjectURL(file);
 
-        reader.onload = () => {
-            const dataUrl = reader.result as string;
+        // 1. Create a fake participant for the PDF (so it shows in the large video area)
+        this.props.dispatch(participantJoined({
+            conference,
+            fakeParticipant: FakeParticipant.SharedPdf,
+            id: documentId,
+            name: SHARED_PDF_PARTICIPANT_NAME
+        }));
 
-            // Store the data URL in Redux so SharedPdf component can render it
-            this.props.dispatch(setSharedPdfStatus({
-                documentId,
-                documentUrl: dataUrl,
-                status: PDF_STATUS.OPEN,
-                ownerId: localParticipantId,
-                page: 1,
-                zoom: 1.0,
-                scrollX: 0,
-                scrollY: 0,
-                rotation: 0,
-                presenterMode: true
-            }));
+        // 2. Pin the PDF participant so it takes over the large video area
+        this.props.dispatch(pinParticipant(documentId));
 
-            // Send XMPP command to notify other participants
-            // Note: the data URL is NOT sent over XMPP (too large).
-            // For V1, only the presenter sees the PDF. Multi-participant
-            // file transfer will be added in a future version.
-            sendSharePdfCommand({
-                conference,
-                documentId,
-                documentUrl: `local://${documentId}`,
-                localParticipantId,
-                status: PDF_STATUS.OPEN,
-                page: 1,
-                zoom: 1.0,
-                scrollX: 0,
-                scrollY: 0,
-                rotation: 0,
-                presenterMode: true
-            });
-        };
-
-        reader.onerror = () => {
-            console.error('Failed to read PDF file');
-            this.props.dispatch(showErrorNotification({
-                titleKey: 'sharedPdf.readError',
-                appearance: NOTIFICATION_TYPE.ERROR
-            }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
-        };
-
-        reader.readAsDataURL(file);
+        // 3. Set the shared PDF status with the blob URL
+        this.props.dispatch(setSharedPdfStatus({
+            documentId,
+            documentUrl: blobUrl,
+            status: PDF_STATUS.OPEN,
+            ownerId: localParticipantId,
+            page: 1,
+            zoom: 1.0,
+            scrollX: 0,
+            scrollY: 0,
+            rotation: 0,
+            presenterMode: true
+        }));
     }
 
     override render() {
