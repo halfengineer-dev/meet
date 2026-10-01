@@ -20,6 +20,7 @@ interface IProps extends AbstractButtonProps {
     _isOwner: boolean;
     _conference: any;
     _localParticipantId: string;
+    _documentId: string;
 }
 
 /**
@@ -46,14 +47,10 @@ class SharedPdfButton extends AbstractButton<IProps> {
     override _handleClick() {
         if (this.props._sharingPdf) {
             if (this.props._isOwner) {
-                const state = this.props.store?.getState?.()
-                    ?? (this.props as any)._store?.getState?.();
-                const documentId = state?.['features/shared-pdf']?.documentId ?? '';
-
                 // Stop sharing
                 sendSharePdfCommand({
                     conference: this.props._conference,
-                    documentId,
+                    documentId: this.props._documentId,
                     localParticipantId: this.props._localParticipantId,
                     status: PDF_STATUS.STOP
                 });
@@ -188,7 +185,8 @@ function _mapStateToProps(state: IReduxState) {
         _sharingPdf: sharingPdf,
         _isOwner: sharingPdf && ownerId === localParticipantId,
         _conference: state['features/base/conference'].conference,
-        _localParticipantId: localParticipantId ?? ''
+        _localParticipantId: localParticipantId ?? '',
+        _documentId: state['features/shared-pdf']?.documentId ?? ''
     };
 }
 
