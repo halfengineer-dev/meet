@@ -89,6 +89,10 @@ export function getToolbarButtons(stateful: IStateful, definedToolbarButtons: st
  * @returns {boolean} - True if the button is enabled and false otherwise.
  */
 export function isButtonEnabled(buttonName: string, state: IReduxState | Array<string>) {
+    if (buttonName === 'sharedpdf') {
+        return true;
+    }
+
     const buttons = Array.isArray(state) ? state : state['features/toolbox'].toolbarButtons || [];
 
     return buttons.includes(buttonName);
