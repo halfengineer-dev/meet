@@ -23,7 +23,8 @@ export function normalizeUrl(input: string): string {
     if (!/^https?:\/\//i.test(trimmed)) {
         // Check if it's a search query (no dots or contains spaces)
         if (trimmed.indexOf(' ') !== -1 || trimmed.indexOf('.') === -1) {
-            return `https://www.google.com/search?q=${encodeURIComponent(trimmed)}`;
+            // The igu=1 parameter allows Google search to be embedded in an iframe 
+            return `https://www.google.com/search?igu=1&q=${encodeURIComponent(trimmed)}`;
         }
         trimmed = `https://${trimmed}`;
     }
@@ -64,10 +65,10 @@ export function sendSharedBrowserCommand({
     conference?.sendCommandOnce(SHARED_BROWSER, {
         value: commandType,
         attributes: {
-            sessionId,
+            sessionid: sessionId,
             url: url || '',
-            navigationVersion,
-            ownerId
+            version: navigationVersion,
+            ownerid: ownerId
         }
     });
 }

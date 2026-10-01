@@ -25,7 +25,7 @@ const useStyles = makeStyles()(() => {
             position: 'absolute',
             top: 0,
             left: 0,
-            zIndex: 1,
+            zIndex: 10,
         },
         toolbar: {
             display: 'flex',
@@ -44,6 +44,19 @@ const useStyles = makeStyles()(() => {
                 color: '#aaa',
                 cursor: 'not-allowed'
             }
+        },
+        externalLink: {
+            marginLeft: '8px',
+            padding: '6px 12px',
+            backgroundColor: '#1a73e8',
+            color: '#fff',
+            textDecoration: 'none',
+            borderRadius: '4px',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
         },
         input: {
             flex: 1,
@@ -66,6 +79,7 @@ const useStyles = makeStyles()(() => {
             width: '100%',
             height: '100%',
             border: 'none',
+            backgroundColor: '#ffffff'
         },
         errorOverlay: {
             position: 'absolute',
@@ -290,6 +304,17 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
                             <span style={{ padding: '0 8px' }}>🔒 {_url || 'Waiting for URL...'}</span>
                             <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#666' }}>Controlled by {_ownerName}</span>
                         </div>
+                    )}
+                    {_url && (
+                        <a 
+                            href={_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className={classes.externalLink}
+                            title="Some sites block embedding. Click here to open securely in a new tab."
+                        >
+                            ↗ Open externally
+                        </a>
                     )}
                 </div>
                 <div className={classes.iframeContainer}>

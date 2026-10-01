@@ -36,18 +36,19 @@ MiddlewareRegistry.register(store => next => action => {
                 const state = getState();
                 const sharedBrowserState = state['features/shared-browser'];
                 const commandType = value;
+                const { url, sessionid, version, ownerid } = attributes;
 
                 // Validate URL if present
-                if (attributes.url && !validateBrowserUrl(attributes.url)) {
+                if (url && !validateBrowserUrl(url)) {
                     return;
                 }
 
                 // If already open, ignore older versions
                 if (sharedBrowserState.isOpen && 
-                    sharedBrowserState.sessionId === attributes.sessionId &&
+                    sharedBrowserState.sessionId === sessionid &&
                     commandType !== BROWSER_EVENTS.OPEN &&
                     commandType !== BROWSER_EVENTS.CLOSE &&
-                    attributes.navigationVersion <= sharedBrowserState.navigationVersion &&
+                    Number(version) <= sharedBrowserState.navigationVersion &&
                     localParticipantId !== from) {
                     return; // Ignore stale events
                 }
@@ -58,35 +59,35 @@ MiddlewareRegistry.register(store => next => action => {
                         dispatch(participantJoined({
                             conference,
                             fakeParticipant: FakeParticipant.SharedBrowser,
-                            id: attributes.sessionId,
+                            id: sessionid,
                             name: BROWSER_PLAYER_PARTICIPANT_NAME
                         }));
 
-                        dispatch(pinParticipant(attributes.sessionId));
+                        dispatch(pinParticipant(sessionid));
                     }
 
                     // For navigate, add to history if it's a new navigation
                     let newHistory = sharedBrowserState.history || [];
                     let newIndex = sharedBrowserState.currentIndex !== undefined ? sharedBrowserState.currentIndex : -1;
 
-                    if (commandType === BROWSER_EVENTS.NAVIGATE && attributes.url && localParticipantId !== from) {
+                    if (commandType === BROWSER_EVENTS.NAVIGATE && url && localParticipantId !== from) {
                         newHistory = newHistory.slice(0, newIndex + 1);
-                        newHistory.push(attributes.url);
+                        newHistory.push(url);
                         newIndex = newHistory.length - 1;
                     }
 
                     dispatch(setSharedBrowserState({
                         isOpen: true,
-                        sessionId: attributes.sessionId,
-                        ownerId: attributes.ownerId,
-                        url: attributes.url,
-                        navigationVersion: attributes.navigationVersion,
+                        sessionId: sessionid,
+                        ownerId: ownerid,
+                        url: url,
+                        navigationVersion: Number(version),
                         history: newHistory,
                         currentIndex: newIndex
                     }));
 
                 } else if (commandType === BROWSER_EVENTS.CLOSE) {
-                    dispatch(participantLeft(attributes.sessionId, conference, {
+                    dispatch(participantLeft(sessionid, conference, {
                         fakeParticipant: FakeParticipant.SharedBrowser
                     }));
                     dispatch(resetSharedBrowserState());

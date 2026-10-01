@@ -40,11 +40,6 @@ ReducerRegistry.register('features/shared-browser', (state: ISharedBrowserState 
     }
     case RESET_SHARED_BROWSER_STATE:
         return DEFAULT_STATE;
-    case TOGGLE_SHARED_BROWSER:
-        return {
-            ...state,
-            isOpen: !state.isOpen
-        };
     default:
         return state;
     }
