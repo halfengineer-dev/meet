@@ -74,6 +74,7 @@ import { IScreenshotCaptureState } from '../screenshot-capture/reducer';
 import { IShareRoomState } from '../share-room/reducer';
 import { ISharedVideoState } from '../shared-video/reducer';
 import { ISharedBrowserState } from '../shared-browser/reducer';
+import { ISharedPdfState } from '../shared-pdf/reducer';
 import { ISpeakerStatsState } from '../speaker-stats/reducer';
 import { ISubtitlesState } from '../subtitles/reducer';
 import { ITalkWhileMutedState } from '../talk-while-muted/reducer';
@@ -169,6 +170,7 @@ export interface IReduxState {
     'features/share-room': IShareRoomState;
     'features/shared-video': ISharedVideoState;
     'features/shared-browser': ISharedBrowserState;
+    'features/shared-pdf': ISharedPdfState;
     'features/speaker-stats': ISpeakerStatsState;
     'features/subtitles': ISubtitlesState;
     'features/talk-while-muted': ITalkWhileMutedState;

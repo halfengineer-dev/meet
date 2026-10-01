@@ -49,6 +49,7 @@ import '../settings/reducer';
 import '../speaker-stats/reducer';
 import '../shared-browser/reducer';
 import '../shared-video/reducer';
+import '../shared-pdf/reducer';
 import '../subtitles/reducer';
 import '../screen-share/reducer';
 import '../toolbox/reducer';
