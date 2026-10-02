@@ -39,12 +39,8 @@ class SharedPdfButton extends AbstractButton<IProps> {
     override tooltip = 'toolbar.sharedPdf';
     override toggledTooltip = 'toolbar.stopSharedPdf';
 
-    private fileInputRef: React.RefObject<HTMLInputElement>;
-
     constructor(props: IProps) {
         super(props);
-        this.fileInputRef = React.createRef();
-        this._onFileChange = this._onFileChange.bind(this);
     }
 
     override _handleClick() {
@@ -58,7 +54,17 @@ class SharedPdfButton extends AbstractButton<IProps> {
                 }, NOTIFICATION_TIMEOUT_TYPE.SHORT));
             }
         } else {
-            this.fileInputRef.current?.click();
+            // Create a dynamic input element that won't be unmounted when the menu closes
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'application/pdf,.pdf';
+            input.onchange = (e: any) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                    this._processFile(file);
+                }
+            };
+            input.click();
         }
     }
 
@@ -70,13 +76,7 @@ class SharedPdfButton extends AbstractButton<IProps> {
         return this.props._isDisabled;
     }
 
-    private _onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-
-        if (!file) {
-            return;
-        }
-
+    private _processFile(file: File) {
         if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
             this.props.dispatch(showErrorNotification({
                 titleKey: 'sharedPdf.invalidPdf',
@@ -94,7 +94,6 @@ class SharedPdfButton extends AbstractButton<IProps> {
         }
 
         this._sharePdfLocally(file);
-        e.target.value = '';
     }
 
     /**
@@ -140,17 +139,7 @@ class SharedPdfButton extends AbstractButton<IProps> {
     }
 
     override render() {
-        return (
-            <>
-                {super.render()}
-                <input
-                    accept='application/pdf,.pdf'
-                    onChange={this._onFileChange}
-                    ref={this.fileInputRef}
-                    style={{ display: 'none' }}
-                    type='file' />
-            </>
-        );
+        return super.render();
     }
 }
 
