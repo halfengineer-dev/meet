@@ -162,6 +162,7 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
                     conference: _conference,
                     commandType: BROWSER_EVENTS.SYNC_SCROLL,
                     sessionId: _sessionId,
+                    url: _url,
                     navigationVersion: _navigationVersion,
                     ownerId: _localParticipantId,
                     scrollX: event.data.scrollX,

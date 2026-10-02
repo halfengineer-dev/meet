@@ -80,7 +80,7 @@ MiddlewareRegistry.register(store => next => action => {
                         isOpen: true,
                         sessionId: sessionid,
                         ownerId: ownerid,
-                        url: url,
+                        url: url || sharedBrowserState.url,
                         navigationVersion: Number(version),
                         history: newHistory,
                         currentIndex: newIndex,
