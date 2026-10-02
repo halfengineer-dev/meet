@@ -315,7 +315,7 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
         });
     };
 
-    render() {
+    override render() {
         const { classes, _isOwner, _url, _currentIndex, _history, _ownerName, _navigationVersion, isBrowserShared, isResizing, onStage } = this.props;
         const { inputValue, iframeError, isLoading } = this.state;
 
