@@ -107,21 +107,44 @@ class SharedPdfButton extends AbstractButton<IProps> {
             return;
         }
 
-        this._sharePdfLocally(file);
+        this._uploadPdfAndShare(file);
     }
 
     /**
-     * Reads the PDF file as a blob URL and directly updates Redux state.
-     * No XMPP, no middleware, no race conditions — just local state.
+     * Uploads the PDF to the Cloudflare Worker and shares the resulting URL.
      */
-    private _sharePdfLocally(file: File) {
+    private async _uploadPdfAndShare(file: File) {
         const localParticipantId = this.props._localParticipantId;
         const conference = this.props._conference;
         const documentId = uuidv4();
 
-        // Create a blob URL — instant, no FileReader needed
-        const blobUrl = URL.createObjectURL(file);
-        console.log("PDF DEBUG: generated blobUrl", blobUrl);
+        console.log("PDF DEBUG: Uploading to Cloudflare...");
+        let documentUrl = '';
+
+        try {
+            const response = await fetch('https://pdf-uploader.souravdubey754.workers.dev/upload', {
+                method: 'POST',
+                body: file,
+                headers: {
+                    'Content-Type': 'application/pdf'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Upload failed with status ${response.status}`);
+            }
+
+            const data = await response.json();
+            documentUrl = data.url;
+            console.log("PDF DEBUG: Upload successful, URL:", documentUrl);
+        } catch (error) {
+            console.error("PDF DEBUG: Upload error:", error);
+            this.props.dispatch(showErrorNotification({
+                titleKey: 'dialog.error', // generic error
+                appearance: NOTIFICATION_TYPE.ERROR
+            }, NOTIFICATION_TIMEOUT_TYPE.STICKY));
+            return;
+        }
 
         // 1. Create a fake participant for the PDF (so it shows in the large video area)
         this.props.dispatch(participantJoined({
@@ -136,10 +159,10 @@ class SharedPdfButton extends AbstractButton<IProps> {
         this.props.dispatch(pinParticipant(documentId));
         console.log("PDF DEBUG: dispatched pinParticipant");
 
-        // 3. Set the shared PDF status with the blob URL
+        // 3. Set the shared PDF status with the Cloudflare URL
         this.props.dispatch(setSharedPdfStatus({
             documentId,
-            documentUrl: blobUrl,
+            documentUrl,
             status: PDF_STATUS.OPEN,
             ownerId: localParticipantId,
             page: 1,

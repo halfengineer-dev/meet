@@ -107,7 +107,7 @@ MiddlewareRegistry.register(store => next => action => {
         // Wait, the SET_SHARED_PDF_STATUS action sets the state, so if it's the owner, they should broadcast it.
         // But we shouldn't infinite loop. Let's send the command.
         if (localParticipantId === ownerId && status === PDF_STATUS.OPEN) {
-            console.log("XMPP send skipped", {
+            sendSharePdfCommand({
                 conference,
                 documentId,
                 documentUrl,
@@ -131,7 +131,7 @@ MiddlewareRegistry.register(store => next => action => {
         const { ownerId, documentId, documentUrl, status, localPage, localZoom, localScrollX, localScrollY, localRotation, presenterMode } = state['features/shared-pdf'];
 
         if (localParticipantId === ownerId && status === PDF_STATUS.OPEN) {
-            console.log("XMPP send skipped", {
+            sendSharePdfCommand({
                 conference,
                 documentId: documentId ?? '',
                 documentUrl: documentUrl ?? '',
@@ -159,7 +159,7 @@ MiddlewareRegistry.register(store => next => action => {
         if (localParticipantId === stateOwnerId) {
             const conference = getCurrentConference(state);
 
-            console.log("XMPP send skipped", {
+            sendSharePdfCommand({
                 conference,
                 documentId: documentId ?? '',
                 localParticipantId,
