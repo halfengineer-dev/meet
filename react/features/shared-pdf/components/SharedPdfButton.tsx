@@ -54,16 +54,26 @@ class SharedPdfButton extends AbstractButton<IProps> {
                 }, NOTIFICATION_TIMEOUT_TYPE.SHORT));
             }
         } else {
-            // Create a dynamic input element that won't be unmounted when the menu closes
+            console.log("PDF DEBUG: Share PDF button clicked!");
+            // Create a dynamic input element and append it to body to ensure it's not GC'd
+            // and that events fire correctly across all browsers.
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'application/pdf,.pdf';
+            input.style.display = 'none';
+            document.body.appendChild(input);
+            
             input.onchange = (e: any) => {
+                console.log("PDF DEBUG: onchange fired on dynamic input!");
                 const file = e.target.files?.[0];
                 if (file) {
+                    console.log("PDF DEBUG: File received:", file.name, file.size);
                     this._processFile(file);
                 }
+                document.body.removeChild(input);
             };
+            
+            console.log("PDF DEBUG: Invoking input.click()...");
             input.click();
         }
     }
