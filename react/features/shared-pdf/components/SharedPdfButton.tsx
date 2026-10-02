@@ -6,7 +6,7 @@ import { IReduxState } from '../../app/types';
 import { translate } from '../../base/i18n/functions';
 import { IconShareDoc } from '../../base/icons/svg';
 import { getLocalParticipant } from '../../base/participants/functions';
-import { participantJoined, pinParticipant } from '../../base/participants/actions';
+import { participantJoined, participantLeft, pinParticipant } from '../../base/participants/actions';
 import { FakeParticipant } from '../../base/participants/types';
 import { getCurrentConference } from '../../base/conference/functions';
 import AbstractButton, { IProps as AbstractButtonProps } from '../../base/toolbox/components/AbstractButton';
@@ -46,6 +46,10 @@ class SharedPdfButton extends AbstractButton<IProps> {
     override _handleClick() {
         if (this.props._sharingPdf) {
             if (this.props._isOwner) {
+                const { _documentId, _conference } = this.props;
+                if (_documentId && _conference) {
+                    this.props.dispatch(participantLeft(_documentId, _conference));
+                }
                 this.props.dispatch(resetSharedPdfStatus());
             } else {
                 this.props.dispatch(showErrorNotification({
