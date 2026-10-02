@@ -147,20 +147,8 @@ class SharedPdfButton extends AbstractButton<IProps> {
             return;
         }
 
-        // 1. Create a fake participant for the PDF (so it shows in the large video area)
-        this.props.dispatch(participantJoined({
-            conference,
-            fakeParticipant: FakeParticipant.SharedPdf,
-            id: documentId,
-            name: SHARED_PDF_PARTICIPANT_NAME
-        }));
-        console.log("PDF DEBUG: dispatched participantJoined");
-
-        // 2. Pin the PDF participant so it takes over the large video area
-        this.props.dispatch(pinParticipant(documentId));
-        console.log("PDF DEBUG: dispatched pinParticipant");
-
-        // 3. Set the shared PDF status with the Cloudflare URL
+        // Dispatch the shared PDF status — the middleware will handle
+        // creating the fake participant and broadcasting via XMPP.
         this.props.dispatch(setSharedPdfStatus({
             documentId,
             documentUrl,
@@ -173,7 +161,7 @@ class SharedPdfButton extends AbstractButton<IProps> {
             rotation: 0,
             presenterMode: true
         }));
-        console.log("PDF DEBUG: dispatched setSharedPdfStatus");
+        console.log("PDF DEBUG: dispatched setSharedPdfStatus with URL:", documentUrl);
     }
 
     override render() {

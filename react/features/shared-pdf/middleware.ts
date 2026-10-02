@@ -100,12 +100,21 @@ MiddlewareRegistry.register(store => next => action => {
         const state = getState();
         const conference = getCurrentConference(state);
         const localParticipantId = getLocalParticipant(state)?.id;
+        const oldStatus = state['features/shared-pdf']?.status ?? '';
         const { documentId, documentUrl, status, ownerId, presenterPage, presenterZoom, presenterScrollX, presenterScrollY, presenterRotation, presenterMode } = action;
 
-        // If local user is the owner and the state changes, we must broadcast the change
-        // We only broadcast if status is NOT 'start' (we handle the initial start separately in the handler if needed)
-        // Wait, the SET_SHARED_PDF_STATUS action sets the state, so if it's the owner, they should broadcast it.
-        // But we shouldn't infinite loop. Let's send the command.
+        // If transitioning to OPEN for the first time, create the fake participant
+        if (status === PDF_STATUS.OPEN && oldStatus !== PDF_STATUS.OPEN && conference && documentId) {
+            dispatch(participantJoined({
+                conference,
+                fakeParticipant: FakeParticipant.SharedPdf,
+                id: documentId,
+                name: SHARED_PDF_PARTICIPANT_NAME
+            }));
+            dispatch(pinParticipant(documentId));
+        }
+
+        // If local user is the owner, broadcast the change via XMPP
         if (localParticipantId === ownerId && status === PDF_STATUS.OPEN) {
             sendSharePdfCommand({
                 conference,
