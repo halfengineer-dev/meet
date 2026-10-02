@@ -15,6 +15,8 @@ export interface ISharedBrowserState {
     navigationVersion: number;
     history: string[];
     currentIndex: number;
+    scrollX?: number;
+    scrollY?: number;
 }
 
 const DEFAULT_STATE: ISharedBrowserState = {
@@ -35,7 +37,9 @@ ReducerRegistry.register('features/shared-browser', (state: ISharedBrowserState 
             url: action.url !== undefined ? action.url : state.url,
             navigationVersion: action.navigationVersion !== undefined ? action.navigationVersion : state.navigationVersion,
             history: action.history !== undefined ? action.history : state.history,
-            currentIndex: action.currentIndex !== undefined ? action.currentIndex : state.currentIndex
+            currentIndex: action.currentIndex !== undefined ? action.currentIndex : state.currentIndex,
+            scrollX: action.scrollX !== undefined ? action.scrollX : state.scrollX,
+            scrollY: action.scrollY !== undefined ? action.scrollY : state.scrollY
         };
     }
     case RESET_SHARED_BROWSER_STATE:

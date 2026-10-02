@@ -53,7 +53,9 @@ export function sendSharedBrowserCommand({
     sessionId,
     url,
     navigationVersion,
-    ownerId
+    ownerId,
+    scrollX,
+    scrollY
 }: {
     conference: IJitsiConference;
     commandType: string;
@@ -61,6 +63,8 @@ export function sendSharedBrowserCommand({
     url?: string;
     navigationVersion: number;
     ownerId: string;
+    scrollX?: number;
+    scrollY?: number;
 }) {
     conference?.sendCommandOnce(SHARED_BROWSER, {
         value: commandType,
@@ -68,7 +72,9 @@ export function sendSharedBrowserCommand({
             sessionid: sessionId,
             url: url || '',
             version: navigationVersion,
-            ownerid: ownerId
+            ownerid: ownerId,
+            scrollx: scrollX ?? 0,
+            scrolly: scrollY ?? 0
         }
     });
 }

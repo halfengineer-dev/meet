@@ -53,7 +53,7 @@ MiddlewareRegistry.register(store => next => action => {
                     return; // Ignore stale events
                 }
 
-                if (commandType === BROWSER_EVENTS.OPEN || commandType === BROWSER_EVENTS.NAVIGATE || commandType === BROWSER_EVENTS.SYNC_STATE) {
+                if (commandType === BROWSER_EVENTS.OPEN || commandType === BROWSER_EVENTS.NAVIGATE || commandType === BROWSER_EVENTS.SYNC_STATE || commandType === BROWSER_EVENTS.SYNC_SCROLL) {
                     if (!sharedBrowserState.isOpen) {
                         // Create fake participant
                         dispatch(participantJoined({
@@ -83,7 +83,9 @@ MiddlewareRegistry.register(store => next => action => {
                         url: url,
                         navigationVersion: Number(version),
                         history: newHistory,
-                        currentIndex: newIndex
+                        currentIndex: newIndex,
+                        scrollX: attributes.scrollx ? Number(attributes.scrollx) : undefined,
+                        scrollY: attributes.scrolly ? Number(attributes.scrolly) : undefined
                     }));
 
                 } else if (commandType === BROWSER_EVENTS.CLOSE) {

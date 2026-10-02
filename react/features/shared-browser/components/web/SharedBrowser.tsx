@@ -16,6 +16,8 @@ import { BROWSER_EVENTS } from '../../constants';
 // @ts-expect-error
 import Filmstrip from '../../../../../modules/UI/videolayout/Filmstrip';
 
+const PROXY_URL = 'https://browser-proxy.souravdubey754.workers.dev/'; // User will need to deploy this!
+
 const useStyles = makeStyles()(() => {
     return {
         container: {
@@ -107,6 +109,8 @@ interface IProps {
     _history: string[];
     _currentIndex: number;
     _localParticipantId: string;
+    _scrollX: number;
+    _scrollY: number;
     
     clientHeight: number;
     clientWidth: number;
@@ -126,6 +130,8 @@ interface IState {
 }
 
 class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
+    private iframeRef: React.RefObject<HTMLIFrameElement>;
+
     constructor(props: IProps & { classes: any }) {
         super(props);
 
@@ -134,7 +140,40 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
             iframeError: false,
             isLoading: false
         };
+
+        this.iframeRef = React.createRef();
     }
+
+    override componentDidMount() {
+        window.addEventListener('message', this._handleMessage);
+    }
+
+    override componentWillUnmount() {
+        window.removeEventListener('message', this._handleMessage);
+    }
+
+    _handleMessage = (event: MessageEvent) => {
+        const { _isOwner, _conference, _sessionId, _localParticipantId, _navigationVersion } = this.props;
+        
+        if (event.data && event.data.type === 'SYNC_SCROLL') {
+            if (_isOwner) {
+                // Broadcase scroll to everyone
+                sendSharedBrowserCommand({
+                    conference: _conference,
+                    commandType: BROWSER_EVENTS.SYNC_SCROLL,
+                    sessionId: _sessionId,
+                    navigationVersion: _navigationVersion,
+                    ownerId: _localParticipantId,
+                    scrollX: event.data.scrollX,
+                    scrollY: event.data.scrollY
+                });
+            }
+        } else if (event.data && event.data.type === 'SYNC_NAVIGATE') {
+            if (_isOwner) {
+                this._onNavigate(event.data.url);
+            }
+        }
+    };
 
     getDimensions() {
         const { clientHeight, clientWidth, filmstripVisible, filmstripWidth } = this.props;
@@ -171,6 +210,17 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
                 iframeError: false,
                 isLoading: !!this.props._url
             });
+        }
+
+        // If we are NOT the owner, and scroll positions changed, send message down to iframe
+        if (!this.props._isOwner && this.iframeRef.current && this.iframeRef.current.contentWindow) {
+            if (prevProps._scrollX !== this.props._scrollX || prevProps._scrollY !== this.props._scrollY) {
+                this.iframeRef.current.contentWindow.postMessage({
+                    type: 'SET_SCROLL',
+                    scrollX: this.props._scrollX,
+                    scrollY: this.props._scrollY
+                }, '*');
+            }
         }
     }
 
@@ -265,7 +315,7 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
         });
     };
 
-    override render() {
+    render() {
         const { classes, _isOwner, _url, _currentIndex, _history, _ownerName, _navigationVersion, isBrowserShared, isResizing, onStage } = this.props;
         const { inputValue, iframeError, isLoading } = this.state;
 
@@ -281,6 +331,9 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
         if (!onStage) {
             style.display = 'none';
         }
+
+        // Use proxy URL to bypass CORS
+        const iframeSrc = _url ? `${PROXY_URL}?url=${encodeURIComponent(_url)}` : '';
 
         return (
             <div className={`${classes.container} ${isResizing ? 'disable-pointer' : ''}`} style={style}>
@@ -320,8 +373,9 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
                 <div className={classes.iframeContainer}>
                     {_url ? (
                         <iframe
+                            ref={this.iframeRef}
                             key={`${_url}-${_navigationVersion}`} // Force reload on reload command
-                            src={_url}
+                            src={iframeSrc}
                             className={classes.iframe}
                             title="Shared Browser"
                             onLoad={() => this.setState({ isLoading: false })}
@@ -378,6 +432,8 @@ function mapStateToProps(state: IReduxState) {
         _history: sharedBrowserState.history || [],
         _currentIndex: sharedBrowserState.currentIndex !== undefined ? sharedBrowserState.currentIndex : -1,
         _localParticipantId: localParticipantId,
+        _scrollX: sharedBrowserState.scrollX || 0,
+        _scrollY: sharedBrowserState.scrollY || 0,
         
         clientHeight,
         clientWidth: videoSpaceWidth,
@@ -395,3 +451,4 @@ const SharedBrowserWithStyles = (props: IProps) => {
 };
 
 export default connect(mapStateToProps)(SharedBrowserWithStyles);
+
