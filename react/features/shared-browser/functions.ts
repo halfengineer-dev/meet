@@ -23,8 +23,8 @@ export function normalizeUrl(input: string): string {
     if (!/^https?:\/\//i.test(trimmed)) {
         // Check if it's a search query (no dots or contains spaces)
         if (trimmed.indexOf(' ') !== -1 || trimmed.indexOf('.') === -1) {
-            // Use DuckDuckGo which is more proxy-friendly than Google
-            return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`;
+            // Use DuckDuckGo Lite (HTML only) to bypass frame-busting JavaScript that causes blank screens
+            return `https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(trimmed)}`;
         }
         trimmed = `https://${trimmed}`;
     }
