@@ -9,7 +9,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/b
 import { IReduxState } from '../../app/types';
 import { getLocalParticipant } from '../../base/participants/functions';
 import { PDF_STATUS } from '../constants';
-import { updateLocalSharedPdfState, resetSharedPdfStatus } from '../actions';
+import { updateLocalSharedPdfState, resetSharedPdfStatus, togglePdfFollowPresenter } from '../actions';
 import { isPdfSharing, sendSharePdfCommand } from '../functions';
 import { getCurrentConference } from '../../base/conference/functions';
 
@@ -148,7 +148,7 @@ function SharedPdf(props: IProps) {
                         <input 
                             type="checkbox" 
                             checked={followPresenter} 
-                            onChange={(e) => dispatch(updateLocalSharedPdfState({ followPresenter: e.target.checked }))} 
+                            onChange={() => dispatch(togglePdfFollowPresenter())} 
                         />
                         Follow Presenter
                     </label>
