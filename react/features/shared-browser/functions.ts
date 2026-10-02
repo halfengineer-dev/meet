@@ -23,8 +23,8 @@ export function normalizeUrl(input: string): string {
     if (!/^https?:\/\//i.test(trimmed)) {
         // Check if it's a search query (no dots or contains spaces)
         if (trimmed.indexOf(' ') !== -1 || trimmed.indexOf('.') === -1) {
-            // The igu=1 parameter allows Google search to be embedded in an iframe 
-            return `https://www.google.com/search?igu=1&q=${encodeURIComponent(trimmed)}`;
+            // Use DuckDuckGo which is more proxy-friendly than Google
+            return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`;
         }
         trimmed = `https://${trimmed}`;
     }
