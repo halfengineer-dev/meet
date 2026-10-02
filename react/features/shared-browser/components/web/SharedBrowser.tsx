@@ -153,7 +153,7 @@ class SharedBrowserInner extends Component<IProps & { classes: any }, IState> {
     }
 
     _handleMessage = (event: MessageEvent) => {
-        const { _isOwner, _conference, _sessionId, _localParticipantId, _navigationVersion } = this.props;
+        const { _isOwner, _conference, _sessionId, _localParticipantId, _navigationVersion, _url } = this.props;
         
         if (event.data && event.data.type === 'SYNC_SCROLL') {
             if (_isOwner) {
