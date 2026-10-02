@@ -115,7 +115,8 @@ class SharedPdfButton extends AbstractButton<IProps> {
      */
     private async _uploadPdfAndShare(file: File) {
         const localParticipantId = this.props._localParticipantId;
-        const conference = this.props._conference;
+        // @ts-ignore
+        const conference = this.props._conference || (typeof APP !== 'undefined' ? APP.conference : undefined);
         const documentId = uuidv4();
 
         console.log("PDF DEBUG: Uploading to Cloudflare...");
@@ -189,7 +190,7 @@ function _mapStateToProps(state: IReduxState) {
         _isDisabled: sharingPdf && ownerId !== localParticipantId,
         _sharingPdf: sharingPdf,
         _isOwner: sharingPdf && ownerId === localParticipantId,
-        _conference: state['features/base/conference'].conference,
+        _conference: state['features/base/conference'].conference || (typeof APP !== 'undefined' ? APP.conference : undefined),
         _localParticipantId: localParticipantId ?? '',
         _documentId: state['features/shared-pdf']?.documentId ?? ''
     };
