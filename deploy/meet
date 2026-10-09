@@ -1,0 +1,398 @@
+#!/usr/bin/env bash
+# meet - build, deploy and health-check FreshCall (Jitsi Meet fork) on this server.
+#
+#   meet redeploy [branch]   pull latest code, build, deploy, then run all checks
+#   meet check               run health checks only
+#   meet rollback            restore the frontend from before the last redeploy
+#   meet status              show containers and resource usage
+#   meet logs [service]      follow logs (web, prosody, jicofo, jvb, coturn)
+#   meet restart             restart all services (drops ongoing calls briefly)
+
+# Lives on the server at /usr/local/bin/meet. After changing it here, install with:
+#   scp deploy/meet root@iny:/usr/local/bin/meet
+
+# No pipefail: checks use `cmd | grep -q`, which closes the pipe early by design.
+set -u
+
+DOMAIN="freshcall.frpc.tech"
+TURN_DOMAIN="turn.freshcall.frpc.tech"
+PUBLIC_IP="168.231.119.171"
+SRC_DIR="/root/meet"
+STACK_DIR="/root/freshcall"
+WEB_ROOT="/root/custom-meet"
+BACKUP_TAR="/root/freshcall/frontend-previous.tar.gz"
+LOG_DIR="/var/log/meet"
+LOCK_FILE="/run/meet-redeploy.lock"
+NODE_IMAGE="node:24-bookworm"
+SERVICES="web prosody jicofo jvb coturn"
+
+if [ -t 1 ]; then
+    R=$'\e[31m'; G=$'\e[32m'; Y=$'\e[33m'; B=$'\e[1m'; D=$'\e[2m'; N=$'\e[0m'
+else
+    R=""; G=""; Y=""; B=""; D=""; N=""
+fi
+
+FAILS=0
+WARNS=0
+
+step() { printf '\n%s==> %s%s\n' "$B" "$1" "$N"; }
+ok()   { printf '  %s✔%s %s\n' "$G" "$N" "$1"; }
+warn() { WARNS=$((WARNS + 1)); printf '  %s!%s %s\n' "$Y" "$N" "$1"; [ -n "${2:-}" ] && printf '    %sWhat to do:%s %s\n' "$D" "$N" "$2"; }
+bad()  { FAILS=$((FAILS + 1)); printf '  %s✘%s %s\n' "$R" "$N" "$1"; [ -n "${2:-}" ] && printf '    %sWhat to do:%s %s\n' "$D" "$N" "$2"; }
+
+# Stop the whole run with a plain-language explanation.
+die() {
+    printf '\n%s✘ FAILED: %s%s\n' "$R" "$1" "$N"
+    [ -n "${2:-}" ] && printf '  %sWhy:%s %s\n' "$B" "$N" "$2"
+    [ -n "${3:-}" ] && printf '  %sWhat to do:%s %s\n' "$B" "$N" "$3"
+    [ -n "${RUN_LOG:-}" ] && printf '  %sFull log:%s %s\n' "$B" "$N" "$RUN_LOG"
+    exit 1
+}
+
+compose() { (cd "$STACK_DIR" && docker compose "$@"); }
+
+http_code() { curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$@" 2>/dev/null || true; }
+
+# ---------------------------------------------------------------- checks
+
+cert_days_left() {
+    local end
+    end=$(echo | openssl s_client -connect "127.0.0.1:443" -servername "$1" 2>/dev/null \
+        | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+    [ -z "$end" ] && { echo ""; return; }
+    echo $(( ($(date -d "$end" +%s) - $(date +%s)) / 86400 ))
+}
+
+check_cert() {
+    local days
+    days=$(cert_days_left "$1")
+    if [ -z "$days" ]; then
+        bad "No valid HTTPS certificate is being served for $1." \
+            "Run: certbot certonly --nginx -d $1   then: systemctl reload nginx"
+    elif [ "$days" -lt 0 ]; then
+        bad "The HTTPS certificate for $1 has EXPIRED. Browsers will refuse to connect." \
+            "Run: certbot renew --force-renewal && systemctl reload nginx"
+    elif [ "$days" -lt 14 ]; then
+        warn "The HTTPS certificate for $1 expires in $days days and has not auto-renewed." \
+            "Run: certbot renew   and read the error it prints."
+    else
+        ok "HTTPS certificate for $1 is valid ($days days left)"
+    fi
+}
+
+run_checks() {
+    local code svc state
+
+    step "Services"
+    if ! systemctl is-active --quiet docker; then
+        bad "Docker is not running, so nothing can be served." "Run: systemctl start docker"
+    fi
+    for svc in $SERVICES; do
+        state=$(compose ps --format '{{.State}}' "$svc" 2>/dev/null | head -1)
+        case "$state" in
+            running) ok "$svc is running" ;;
+            restarting)
+                bad "$svc keeps crashing and restarting." \
+                    "Run: meet logs $svc   - the reason is in the last lines." ;;
+            "")
+                bad "$svc is not running at all." "Run: meet restart" ;;
+            *)
+                bad "$svc is in state '$state' instead of running." "Run: meet logs $svc" ;;
+        esac
+    done
+    if systemctl is-active --quiet nginx; then
+        ok "nginx (HTTPS front door) is running"
+    else
+        bad "nginx is not running, so the site is unreachable." \
+            "Run: nginx -t   to see the config error, fix it, then: systemctl start nginx"
+    fi
+
+    step "Website"
+    code=$(http_code "https://$DOMAIN/")
+    case "$code" in
+        200) ok "https://$DOMAIN loads" ;;
+        000) bad "https://$DOMAIN is not reachable at all." \
+                 "Check DNS still points to $PUBLIC_IP (and is grey-cloud), and that nginx is running." ;;
+        502|504) bad "The site returns $code: nginx is up but the web container is not answering." \
+                 "Run: meet logs web" ;;
+        403) bad "The site returns 403: the web server is not allowed to read the app files." \
+                 "Run: chmod 755 $WEB_ROOT && chmod -R a+rX $WEB_ROOT" ;;
+        *)   bad "The site returns HTTP $code instead of 200." "Run: meet logs web" ;;
+    esac
+
+    local live built
+    live=$(curl -s --max-time 30 "https://$DOMAIN/libs/app.bundle.min.js" | sha256sum | cut -d' ' -f1)
+    built=$(sha256sum "$WEB_ROOT/libs/app.bundle.min.js" 2>/dev/null | cut -d' ' -f1)
+    if [ -z "$built" ]; then
+        bad "The built app is missing from $WEB_ROOT." "Run: meet redeploy"
+    elif [ "$live" = "$built" ]; then
+        ok "Visitors are getting the currently deployed app build"
+    else
+        bad "The app served to visitors is not the build on disk (stale or broken)." \
+            "Run: meet restart   - if it persists, run: meet redeploy"
+    fi
+
+    if curl -s --max-time 10 "https://$DOMAIN/config.js" | grep -q "wss://$DOMAIN/"; then
+        ok "App config points at $DOMAIN"
+    else
+        bad "The app config does not point at $DOMAIN, so calls cannot connect." \
+            "Check PUBLIC_URL in $STACK_DIR/.env, then run: meet restart"
+    fi
+
+    step "Call signaling"
+    code=$(http_code --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+        -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+        -H 'Sec-WebSocket-Protocol: xmpp' --max-time 5 "https://$DOMAIN/xmpp-websocket?room=healthcheck")
+    if [ "$code" = "101" ]; then
+        ok "Signaling WebSocket accepts connections"
+    else
+        bad "The signaling WebSocket answered $code instead of 101. People will be stuck on 'connecting'." \
+            "Run: meet logs prosody   - if prosody looks fine, check the nginx site config still forwards Upgrade headers."
+    fi
+
+    # Last bridge-related event in jicofo's log decides: joined, lost, or cannot log in.
+    local jlast
+    jlast=$(compose logs jicofo 2>/dev/null \
+        | grep -E 'Added new videobridge|Removing videobridge|Removed videobridge|Failed to connect/login' | tail -1)
+    case "$jlast" in
+        *"Added new videobridge"*)
+            ok "Conference manager (jicofo) has a video bridge to use" ;;
+        *"Failed to connect/login"*)
+            bad "jicofo cannot log in to prosody, so no meeting can start." \
+                "Run: meet restart   - if it persists, see: meet logs jicofo" ;;
+        *Remov*)
+            bad "jicofo lost its video bridge, so group calls will have no audio/video." \
+                "Run: meet restart   - if it persists, see: meet logs jvb" ;;
+        *)
+            warn "Could not confirm from logs that jicofo has a video bridge." \
+                "Open a test room with 3 people. If video fails, run: meet logs jicofo" ;;
+    esac
+
+    step "Audio / video (media)"
+    code=$(http_code "http://127.0.0.1:8080/about/health")
+    if [ "$code" = "200" ]; then
+        ok "Video bridge (jvb) reports healthy"
+    else
+        bad "The video bridge health check answered '$code'. Calls with 3+ people will have no audio/video." \
+            "Run: meet logs jvb"
+    fi
+    if ss -uln | grep -q ':10000 '; then
+        ok "Media port UDP 10000 is listening"
+    else
+        bad "Nothing is listening on UDP 10000, the port all audio/video uses." "Run: meet restart"
+    fi
+    if ufw status 2>/dev/null | grep -q '^10000/udp.*ALLOW'; then
+        ok "Firewall allows UDP 10000"
+    else
+        warn "The firewall has no rule allowing UDP 10000." "Run: ufw allow 10000/udp"
+    fi
+    if grep -q "^JVB_ADVERTISE_IPS=$PUBLIC_IP\$" "$STACK_DIR/.env"; then
+        ok "Video bridge advertises the right public IP ($PUBLIC_IP)"
+    else
+        bad "JVB_ADVERTISE_IPS in .env is not $PUBLIC_IP. People will join but see/hear nothing." \
+            "Fix JVB_ADVERTISE_IPS in $STACK_DIR/.env, then run: meet restart"
+    fi
+
+    step "TURN relay (for people behind strict firewalls)"
+    if echo | openssl s_client -connect "$TURN_DOMAIN:443" -servername "$TURN_DOMAIN" 2>/dev/null \
+        | grep -q "CN *= *$TURN_DOMAIN"; then
+        ok "TURN over TLS answers on $TURN_DOMAIN:443"
+    else
+        bad "$TURN_DOMAIN:443 is not answering as the TURN server. Users on networks that block UDP will fail." \
+            "Check DNS for $TURN_DOMAIN points to $PUBLIC_IP and that the 'stream' block is still in /etc/nginx/nginx.conf."
+    fi
+    if ss -tln | grep -q '127.0.0.1:3478 '; then
+        ok "coturn is listening"
+    else
+        bad "coturn is not listening on port 3478." "Run: meet logs coturn"
+    fi
+    if grep -q "^TURNS_HOST=$TURN_DOMAIN\$" "$STACK_DIR/.env"; then
+        ok "Meetings are configured to offer the TURN relay"
+    else
+        bad "TURNS_HOST is missing from .env, so clients are never told about the TURN relay." \
+            "Restore the TURN_* lines in $STACK_DIR/.env, then run: meet restart"
+    fi
+
+    step "Certificates and server"
+    check_cert "$DOMAIN"
+    check_cert "$TURN_DOMAIN"
+    local used
+    used=$(df --output=pcent / | tail -1 | tr -dc '0-9')
+    if [ "$used" -ge 90 ]; then
+        bad "The disk is ${used}% full. Builds and logs will start failing." \
+            "Free space, e.g.: docker system prune -af"
+    else
+        ok "Disk usage is ${used}%"
+    fi
+
+    echo
+    if [ "$FAILS" -gt 0 ]; then
+        printf '%s✘ %d problem(s) found%s' "$R" "$FAILS" "$N"
+        [ "$WARNS" -gt 0 ] && printf ', %d warning(s)' "$WARNS"
+        printf '. Fix the items marked ✘ above.\n'
+        return 1
+    fi
+    if [ "$WARNS" -gt 0 ]; then
+        printf '%s✔ Working, with %d warning(s) to look at.%s\n' "$Y" "$WARNS" "$N"
+    else
+        printf '%s✔ Everything is working: https://%s%s\n' "$G" "$DOMAIN" "$N"
+    fi
+    return 0
+}
+
+# ---------------------------------------------------------------- redeploy
+
+# Turn the build log into one sentence a human can act on.
+explain_build_failure() {
+    local log="$1" excerpt
+    if grep -q 'error TS[0-9]' "$log"; then
+        excerpt=$(grep -m5 'error TS[0-9]' "$log")
+        die "The code has TypeScript errors, so it was not deployed. The live site is unchanged." \
+            "$(printf 'First errors:\n%s' "$excerpt")" \
+            "Fix these in the code, push, and run 'meet redeploy' again. (Locally: npm run tsc:web)"
+    elif grep -qiE 'ENOSPC|no space left' "$log"; then
+        die "The server ran out of disk space during the build. The live site is unchanged." "" \
+            "Free space (docker system prune -af) and run 'meet redeploy' again."
+    elif grep -qiE 'heap out of memory|Killed' "$log"; then
+        die "The build ran out of memory. The live site is unchanged." "" \
+            "Check 'free -h' for what is using RAM, then run 'meet redeploy' again."
+    elif grep -qE 'npm (ERR!|error)' "$log"; then
+        excerpt=$(grep -m6 -E 'npm (ERR!|error)' "$log")
+        die "Installing dependencies (npm ci) failed. The live site is unchanged." \
+            "$(printf '%s' "$excerpt")" \
+            "Usually package.json and package-lock.json are out of sync, or the network dropped. Run 'npm install' locally, commit the lockfile, and redeploy."
+    elif grep -qE 'Module not found|ERROR in ' "$log"; then
+        excerpt=$(grep -m6 -A2 -E 'Module not found|ERROR in ' "$log")
+        die "Webpack could not bundle the app. The live site is unchanged." \
+            "$(printf '%s' "$excerpt")" \
+            "Fix the import/file named above, push, and run 'meet redeploy' again."
+    elif grep -qiE 'sass|scss' <(tail -30 "$log") && grep -q 'Error' <(tail -30 "$log"); then
+        die "The stylesheets (SCSS) failed to compile. The live site is unchanged." \
+            "$(tail -12 "$log")" "Fix the SCSS error above, push, and redeploy."
+    else
+        die "The build failed for a reason I don't recognise. The live site is unchanged." \
+            "$(printf 'Last lines of the build:\n%s' "$(grep -v 'webpack.Progress' "$log" | tail -15)")" \
+            "Read the full log below."
+    fi
+}
+
+cmd_redeploy() {
+    local branch="${1:-}" before after lock_hash started
+    started=$(date +%s)
+    mkdir -p "$LOG_DIR"
+    RUN_LOG="$LOG_DIR/redeploy-$(date +%Y%m%d-%H%M%S).log"
+
+    exec 9>"$LOCK_FILE"
+    flock -n 9 || die "Another 'meet redeploy' is already running." "" "Wait for it to finish."
+
+    step "1/5 Pre-flight"
+    [ -d "$SRC_DIR/.git" ] || die "The source checkout $SRC_DIR is missing." "" \
+        "Run: git clone https://github.com/halfengineer-dev/meet $SRC_DIR"
+    systemctl is-active --quiet docker || die "Docker is not running." "" "Run: systemctl start docker"
+    local free_gb
+    free_gb=$(df --output=avail -BG / | tail -1 | tr -dc '0-9')
+    [ "$free_gb" -ge 8 ] || die "Only ${free_gb}GB of disk is free; a build needs about 8GB." "" \
+        "Run: docker system prune -af"
+    ok "Docker is up, ${free_gb}GB disk free"
+
+    step "2/5 Fetching latest code"
+    cd "$SRC_DIR" || exit 1
+    [ -z "$branch" ] && branch=$(git rev-parse --abbrev-ref HEAD)
+    before=$(git rev-parse --short HEAD)
+    if ! git fetch --depth 1 origin "$branch" >>"$RUN_LOG" 2>&1; then
+        die "Could not download branch '$branch' from GitHub." \
+            "$(tail -3 "$RUN_LOG")" \
+            "Check the branch name exists and that the server has internet access."
+    fi
+    # This checkout is deploy-only; build outputs dirty tracked files, so always match GitHub exactly.
+    git checkout -q -B "$branch" FETCH_HEAD >>"$RUN_LOG" 2>&1 || git reset -q --hard FETCH_HEAD >>"$RUN_LOG" 2>&1
+    git reset -q --hard FETCH_HEAD >>"$RUN_LOG" 2>&1
+    after=$(git rev-parse --short HEAD)
+    if [ "$before" = "$after" ]; then
+        ok "Already at the latest commit ($after) - rebuilding anyway"
+    else
+        ok "Updated $before -> $after: $(git log -1 --format=%s)"
+    fi
+
+    step "3/5 Building (takes about 2-5 minutes)"
+    lock_hash=$(sha256sum package-lock.json | cut -d' ' -f1)
+    local install="npm ci --no-audit --no-fund"
+    if [ -d node_modules ] && [ "$(cat node_modules/.meet-lock-hash 2>/dev/null)" = "$lock_hash" ]; then
+        install="echo 'dependencies unchanged, skipping npm ci'"
+        ok "Dependencies unchanged, skipping install"
+    fi
+    rm -f jitsi-meet.tar.bz2
+    if ! docker run --rm --name meet-build -v "$SRC_DIR":/src -w /src -e CI=true "$NODE_IMAGE" \
+        bash -c "set -e; command -v bzip2 >/dev/null || (apt-get update -qq && apt-get install -y -qq bzip2 >/dev/null); $install; make source-package" \
+        >>"$RUN_LOG" 2>&1; then
+        explain_build_failure "$RUN_LOG"
+    fi
+    [ -s jitsi-meet.tar.bz2 ] || die "The build finished but produced no package." "" "Read the full log below."
+    echo "$lock_hash" > node_modules/.meet-lock-hash
+    ok "Build succeeded ($(du -h jitsi-meet.tar.bz2 | cut -f1) package)"
+
+    step "4/5 Deploying"
+    local stage
+    stage=$(mktemp -d /root/.meet-stage.XXXXXX)
+    if ! tar xjf jitsi-meet.tar.bz2 -C "$stage" --strip-components=1 >>"$RUN_LOG" 2>&1 \
+        || [ ! -s "$stage/libs/app.bundle.min.js" ] || [ ! -s "$stage/index.html" ]; then
+        rm -rf "$stage"
+        die "The built package is incomplete, so it was not deployed. The live site is unchanged." "" \
+            "Run 'meet redeploy' again; if it repeats, read the full log below."
+    fi
+    if [ -d "$WEB_ROOT" ]; then
+        tar czf "$BACKUP_TAR.tmp" -C "$WEB_ROOT" . && mv "$BACKUP_TAR.tmp" "$BACKUP_TAR"
+        ok "Saved the current version for 'meet rollback'"
+    fi
+    mkdir -p "$WEB_ROOT"
+    # Sync in place: the web container bind-mounts this directory, so it must not be replaced.
+    chmod 755 "$stage"  # mktemp makes it 0700, which the non-root web container cannot read
+    rsync -a --delete "$stage"/ "$WEB_ROOT"/ >>"$RUN_LOG" 2>&1 \
+        || { rm -rf "$stage"; die "Copying the new build into place failed." "$(tail -3 "$RUN_LOG")" "Run: meet rollback"; }
+    rm -rf "$stage"
+    echo "$after $(date -u +%FT%TZ)" > "$STACK_DIR/deployed-version"
+    if ! compose up -d >>"$RUN_LOG" 2>&1; then
+        die "The new files are in place but the containers failed to start." \
+            "$(tail -5 "$RUN_LOG")" "Run: meet status   and   meet logs <service>"
+    fi
+    ok "New build is live (commit $after)"
+
+    step "5/5 Verifying"
+    sleep 5
+    if run_checks; then
+        printf '%sDeployed commit %s in %ss.%s\n' "$D" "$after" "$(( $(date +%s) - started ))" "$N"
+    else
+        printf '\n%sThe deploy finished but checks failed. To go back to the previous version: meet rollback%s\n' "$Y" "$N"
+        exit 1
+    fi
+}
+
+cmd_rollback() {
+    [ -s "$BACKUP_TAR" ] || die "There is no previous version saved to roll back to." "" \
+        "A backup is created each time 'meet redeploy' runs."
+    step "Restoring the previous frontend"
+    local stage
+    stage=$(mktemp -d /root/.meet-stage.XXXXXX)
+    tar xzf "$BACKUP_TAR" -C "$stage" || { rm -rf "$stage"; die "The saved backup is corrupt." "" "Run: meet redeploy"; }
+    chmod 755 "$stage"
+    rsync -a --delete "$stage"/ "$WEB_ROOT"/ && rm -rf "$stage"
+    ok "Previous version restored"
+    run_checks
+}
+
+cmd_status() {
+    [ -f "$STACK_DIR/deployed-version" ] && echo "Deployed: $(cat "$STACK_DIR/deployed-version")"
+    compose ps --format 'table {{.Service}}\t{{.State}}\t{{.Status}}'
+    echo
+    docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' $(compose ps -q)
+}
+
+case "${1:-help}" in
+    redeploy|deploy) shift; cmd_redeploy "$@" ;;
+    check|doctor)    run_checks ;;
+    rollback)        cmd_rollback ;;
+    status)          cmd_status ;;
+    logs)            shift; compose logs -f --tail 100 "$@" ;;
+    restart)         compose up -d --force-recreate && sleep 15 && run_checks ;;
+    *)               sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac
