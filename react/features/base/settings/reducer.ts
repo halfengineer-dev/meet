@@ -99,7 +99,7 @@ export interface ISettingsState {
     videoSettingsVisible?: boolean;
     visible?: boolean;
     
-    // Fresh Call custom host options
+    // Faceonn custom host options
     fcHostWaitingRoom?: boolean;
     fcHostRequirePasscode?: string;
     fcHostLiveTranscription?: boolean;

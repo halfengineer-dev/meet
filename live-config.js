@@ -14,8 +14,8 @@ if (subdomain) {
     subdomain = subdomain.substring(0,subdomain.length-1).split('.').join('_').toLowerCase() + '.';
 }
 config.hosts.muc = 'muc.' + subdomain + 'meet.jitsi';
-config.bosh = 'https://freshcall.magic.frpc.tech/' + subdir + 'http-bind';
-config.websocket = 'wss://freshcall.magic.frpc.tech/' + subdir + 'xmpp-websocket';
+config.bosh = 'https://faceonn.com/' + subdir + 'http-bind';
+config.websocket = 'wss://faceonn.com/' + subdir + 'xmpp-websocket';
 config.bridgeChannel = {
     preferSctp: true
 };

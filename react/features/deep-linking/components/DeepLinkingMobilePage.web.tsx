@@ -172,7 +172,7 @@ const DeepLinkingMobilePage: React.FC<WithTranslation> = ({ t }) => {
             <div className = { styles.contentPane }>
                 {!hideLogo && (
                     <h1 style={{ color: 'white', marginBottom: '24px', fontSize: '28px' }}>
-                        Fresh Call
+                        Faceonn
                     </h1>
                 )}
 

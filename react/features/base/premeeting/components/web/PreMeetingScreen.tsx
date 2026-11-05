@@ -235,13 +235,13 @@ const PreMeetingScreen = ({
     };
 
     return (
-        <div className = { clsx('fresh-call-prejoin-wrapper', className) }>
+        <div className = { clsx('fresh-call-prejoin-wrapper', 'faceonn-prejoin-wrapper', className) }>
             <div className = 'fc-header'>
                 <div className = 'fc-logo'>
                     <img
                         alt = 'logo'
                         src = 'images/favicon.svg' />
-                    <span>fresh call</span>
+                    <span>Faceonn</span>
                 </div>
                 <div className = 'fc-user'>
                     <div className = 'fc-avatar'>S</div>

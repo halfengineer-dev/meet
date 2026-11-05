@@ -115,7 +115,7 @@ export function computeCalendarTimerDuration(event?: ICalendarTimerEvent) {
  * @returns {boolean}
  */
 export function isTimeTimerEnabled(state: IReduxState): boolean {
-    return false; // Disabled completely for Fresh Call
+    return false; // Disabled completely for Faceonn
 }
 
 /**

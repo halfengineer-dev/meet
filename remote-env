@@ -29,13 +29,13 @@ TZ=UTC
 
 # Public URL for the web service (required)
 # Keep in mind that if you use a non-standard HTTPS port, it has to appear in the public URL
-PUBLIC_URL=https://freshcall.magic.frpc.tech
+PUBLIC_URL=https://faceonn.com
 
 # Media IP addresses and ports to advertise by the JVB
 # This setting deprecates DOCKER_HOST_ADDRESS, and supports a comma separated list of IPs
 # See the "Running behind NAT or on a LAN environment" section in the Handbook:
 # https://jitsi.github.io/handbook/docs/devops-guide/devops-guide-docker#running-behind-nat-or-on-a-lan-environment
-JVB_ADVERTISE_IPS=168.231.114.8
+JVB_ADVERTISE_IPS=200.234.42.175
 
 #
 # Memory limits for Java components

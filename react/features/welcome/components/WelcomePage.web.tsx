@@ -149,7 +149,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
         super.componentDidMount();
 
         document.body.classList.add('welcome-page');
-        document.title = 'Fresh Call';
+        document.title = 'Faceonn';
 
         if (this.state.generateRoomNames) {
             this._updateRoomName();
@@ -213,7 +213,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                                 <path d = 'M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z' />
                             </svg>
                         </div>
-                        Fresh Call
+                        Faceonn
                     </div>
                     <div className = 'nav-middle'>
                         <a href = '#'>Resources</a>
@@ -267,7 +267,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
                             <h1>
                                 Connect, collaborate<br />
                                 and get more done<br />
-                                with <span>Fresh Call</span>
+                                with <span>Faceonn</span>
                             </h1>
                             <p className = 'subtitle'>
                                 Secure, reliable and high quality video meetings for teams, businesses and individuals.
@@ -340,7 +340,7 @@ class WelcomePage extends AbstractWelcomePage<IProps> {
 
                         <div className = 'hero-image'>
                             <img
-                                alt = 'Fresh Call on multiple devices'
+                                alt = 'Faceonn on multiple devices'
                                 src = './images/homescreen.png' />
                         </div>
                     </div>

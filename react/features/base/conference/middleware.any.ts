@@ -462,7 +462,7 @@ function _participantRoleChanged(store: IStore, next: Function, action: AnyActio
     if (action.participant?.id === getLocalParticipant(getState)?.id) {
         _maybeNotifySettingsIncomplete({ dispatch, getState });
         
-        // Fresh Call: Process pending host options if the user just became moderator
+        // Faceonn: Process pending host options if the user just became moderator
         if (action.participant?.role === PARTICIPANT_ROLE.MODERATOR) {
             const settings = getState()['features/base/settings'];
             const conference = getCurrentConference(getState);

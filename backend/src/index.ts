@@ -9,7 +9,7 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {
-  console.log('🚀 Starting Fresh Call Custom Backend...');
+  console.log('🚀 Starting Faceonn Custom Backend...');
 
   // 1. Initialize Express
   const app = createHttpServer();

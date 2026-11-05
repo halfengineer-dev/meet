@@ -14,9 +14,9 @@
 # No pipefail: checks use `cmd | grep -q`, which closes the pipe early by design.
 set -u
 
-DOMAIN="freshcall.frpc.tech"
-TURN_DOMAIN="turn.freshcall.frpc.tech"
-PUBLIC_IP="168.231.119.171"
+DOMAIN="faceonn.com"
+TURN_DOMAIN="turn.faceonn.com"
+PUBLIC_IP="200.234.42.175"
 SRC_DIR="/root/meet"
 STACK_DIR="/root/freshcall"
 WEB_ROOT="/root/custom-meet"

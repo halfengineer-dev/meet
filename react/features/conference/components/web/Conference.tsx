@@ -190,7 +190,7 @@ class Conference extends AbstractConference<IProps, any> {
      * @inheritdoc
      */
     override componentDidMount() {
-        document.title = `${this.props._roomName} | Fresh Call`;
+        document.title = `${this.props._roomName} | Faceonn`;
         this._start();
     }
 
