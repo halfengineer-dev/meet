@@ -15,9 +15,5 @@ const sharePdf = {
  *  @returns {Object | undefined}
  */
 export function useSharedPdfButton() {
-    const sharedPdfEnabled = useSelector(isSharedPdfEnabled);
-
-    if (sharedPdfEnabled) {
-        return sharePdf;
-    }
+    return undefined;
 }

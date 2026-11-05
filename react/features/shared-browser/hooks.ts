@@ -12,5 +12,5 @@ const sharedBrowser = {
  *  @returns {Object | undefined}
  */
 export function useSharedBrowserButton() {
-    return sharedBrowser;
+    return undefined;
 }

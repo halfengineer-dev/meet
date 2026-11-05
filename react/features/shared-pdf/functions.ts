@@ -34,8 +34,7 @@ export function isPdfSharing(stateful: IStateful): boolean {
  * @returns {boolean}
  */
 export function isSharedPdfEnabled(stateful: IStateful) {
-    // Enabled by default since it's a core feature, but requires apiUrl to actually upload.
-    return true;
+    return false;
 }
 
 /**

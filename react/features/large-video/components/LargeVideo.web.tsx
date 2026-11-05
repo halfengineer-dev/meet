@@ -16,8 +16,6 @@ import StageParticipantNameLabel from '../../display-name/components/web/StagePa
 import { FILMSTRIP_BREAKPOINT } from '../../filmstrip/constants';
 import { getVerticalViewMaxWidth, isFilmstripResizable } from '../../filmstrip/functions.web';
 import SharedVideo from '../../shared-video/components/web/SharedVideo';
-import { SharedBrowser } from '../../shared-browser/components';
-import SharedPdf from '../../shared-pdf/components/SharedPdf';
 import Captions from '../../subtitles/components/web/Captions';
 import { areClosedCaptionsEnabled } from '../../subtitles/functions.any';
 import { setTileView } from '../../video-layout/actions.web';
@@ -55,16 +53,6 @@ interface IProps {
      * Whether or not the hideSelfView is enabled.
      */
     _hideSelfView: boolean;
-
-    /**
-     * Prop that indicates whether the shared browser is open.
-     */
-    _isSharedBrowserOpen?: boolean;
-
-    /**
-     * Prop that indicates whether a PDF is being shared.
-     */
-    _isSharedPdfOpen?: boolean;
 
     /**
      * Prop that indicates whether the chat is open.
@@ -218,9 +206,7 @@ class LargeVideo extends Component<IProps> {
             _noAutoPlayVideo,
             _showDominantSpeakerBadge,
             _whiteboardEnabled,
-            _showSubtitles,
-            _isSharedBrowserOpen,
-            _isSharedPdfOpen
+            _showSubtitles
         } = this.props;
         const style = this._getCustomStyles();
         const className = 'videocontainer';
@@ -232,8 +218,6 @@ class LargeVideo extends Component<IProps> {
                 ref = { this._containerRef }
                 style = { style }>
                 <SharedVideo />
-                {_isSharedBrowserOpen && <SharedBrowser />}
-                {_isSharedPdfOpen && <SharedPdf />}
                 {_whiteboardEnabled && <Whiteboard />}
                 <div id = 'etherpad' />
 
@@ -415,9 +399,7 @@ function _mapStateToProps(state: IReduxState) {
         _verticalFilmstripWidth: verticalFilmstripWidth.current,
         _verticalViewMaxWidth: getVerticalViewMaxWidth(state),
         _visibleFilmstrip: visible,
-        _whiteboardEnabled: isWhiteboardEnabled(state),
-        _isSharedBrowserOpen: state['features/shared-browser']?.isOpen,
-        _isSharedPdfOpen: state['features/shared-pdf']?.status === 'open'
+        _whiteboardEnabled: isWhiteboardEnabled(state)
     };
 }
 
