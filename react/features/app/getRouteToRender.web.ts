@@ -9,6 +9,7 @@ import Conference from '../conference/components/web/Conference';
 import { getDeepLinkingPage } from '../deep-linking/functions';
 import UnsupportedDesktopBrowser from '../unsupported-browser/components/UnsupportedDesktopBrowser';
 import BlankPage from '../welcome/components/BlankPage.web';
+import TestWelcomePage from '../welcome/components/TestWelcomePage.web';
 import WelcomePage from '../welcome/components/WelcomePage.web';
 import { getCustomLandingPageURL, isWelcomePageEnabled } from '../welcome/functions';
 
@@ -24,6 +25,13 @@ import { IReduxState } from './types';
  * @returns {Promise<Object>}
  */
 export function _getRouteToRender(stateful: IStateful): Promise<object> {
+    const pathname = window.location.pathname.toLowerCase().replace(/\/+$/, '');
+    if (pathname === '/test') {
+        const route = _getEmptyRoute();
+        route.component = TestWelcomePage;
+        return Promise.resolve(route);
+    }
+
     const state = toState(stateful);
 
     return _getWebConferenceRoute(state) || _getWebWelcomePageRoute(state);
