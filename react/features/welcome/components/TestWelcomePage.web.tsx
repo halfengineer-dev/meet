@@ -1012,3 +1012,4 @@ export default class TestWelcomePage extends Component<{}, IState> {
         );
     }
 }
+
