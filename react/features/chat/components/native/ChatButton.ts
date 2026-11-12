@@ -1,8 +1,6 @@
 import { connect } from 'react-redux';
 
 import { IReduxState } from '../../../app/types';
-import { CHAT_ENABLED } from '../../../base/flags/constants';
-import { getFeatureFlag } from '../../../base/flags/functions';
 import { translate } from '../../../base/i18n/functions';
 import { IconChatUnread, IconMessage } from '../../../base/icons/svg';
 import AbstractButton, { IProps as AbstractButtonProps } from '../../../base/toolbox/components/AbstractButton';
@@ -10,7 +8,7 @@ import { arePollsDisabled } from '../../../conference/functions.any';
 import { navigate } from '../../../mobile/navigation/components/conference/ConferenceNavigationContainerRef';
 import { screen } from '../../../mobile/navigation/routes';
 import { getUnreadPollCount } from '../../../polls/functions';
-import { getUnreadCount, getUnreadFilesCount, isChatDisabled } from '../../functions';
+import { getUnreadCount, getUnreadFilesCount } from '../../functions';
 
 interface IProps extends AbstractButtonProps {
 
@@ -61,17 +59,13 @@ class ChatButton extends AbstractButton<IProps> {
  * Maps part of the redux state to the component's props.
  *
  * @param {Object} state - The Redux state.
- * @param {Object} ownProps - The properties explicitly passed to the component instance.
  * @returns {IProps}
  */
-function _mapStateToProps(state: IReduxState, ownProps: any) {
-    const enabled = getFeatureFlag(state, CHAT_ENABLED, true) && !isChatDisabled(state);
-    const { visible = enabled } = ownProps;
-
+function _mapStateToProps(state: IReduxState) {
     return {
         _isPollsDisabled: arePollsDisabled(state),
         _unreadMessageCount: getUnreadCount(state) || getUnreadPollCount(state) || getUnreadFilesCount(state),
-        visible
+        visible: false
     };
 }
 

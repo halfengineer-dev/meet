@@ -32,27 +32,27 @@ export const THRESHOLDS = [
     },
     {
         width: 565,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'reactions', 'participants-pane', 'tileview' ]
+        order: [ 'microphone', 'camera', 'desktop', 'raisehand', 'reactions', 'participants-pane', 'tileview' ]
     },
     {
         width: 520,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'participants-pane', 'tileview' ]
+        order: [ 'microphone', 'camera', 'desktop', 'raisehand', 'participants-pane', 'tileview' ]
     },
     {
         width: 470,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'raisehand', 'participants-pane' ]
+        order: [ 'microphone', 'camera', 'desktop', 'raisehand', 'participants-pane' ]
     },
     {
         width: 420,
-        order: [ 'microphone', 'camera', 'desktop', 'chat', 'participants-pane' ]
+        order: [ 'microphone', 'camera', 'desktop', 'participants-pane' ]
     },
     {
         width: 370,
-        order: [ 'microphone', 'camera', 'chat', 'participants-pane' ]
+        order: [ 'microphone', 'camera', 'participants-pane' ]
     },
     {
         width: 225,
-        order: [ 'microphone', 'camera', 'chat' ]
+        order: [ 'microphone', 'camera' ]
     },
     {
         width: 200,
@@ -66,19 +66,19 @@ export const THRESHOLDS = [
 export const NATIVE_THRESHOLDS = [
     {
         width: 560,
-        order: [ 'microphone', 'camera', 'chat', 'desktop', 'raisehand', 'tileview', 'overflowmenu', 'hangup' ]
+        order: [ 'microphone', 'camera', 'desktop', 'raisehand', 'tileview', 'overflowmenu', 'hangup' ]
     },
     {
         width: 500,
-        order: [ 'microphone', 'camera', 'chat', 'raisehand', 'tileview', 'overflowmenu', 'hangup' ]
+        order: [ 'microphone', 'camera', 'raisehand', 'tileview', 'overflowmenu', 'hangup' ]
     },
     {
         width: 440,
-        order: [ 'microphone', 'camera', 'chat', 'raisehand', 'overflowmenu', 'hangup' ]
+        order: [ 'microphone', 'camera', 'raisehand', 'overflowmenu', 'hangup' ]
     },
     {
         width: 380,
-        order: [ 'microphone', 'camera', 'chat', 'overflowmenu', 'hangup' ]
+        order: [ 'microphone', 'camera', 'overflowmenu', 'hangup' ]
     },
     {
         width: 320,
@@ -94,7 +94,6 @@ export const MAIN_TOOLBAR_BUTTONS_PRIORITY = [
     'microphone',
     'camera',
     'desktop',
-    'chat',
     'raisehand',
     'reactions',
     'participants-pane',
@@ -148,7 +147,6 @@ export const SPINNER_COLOR = '#929292';
 export const TOOLBAR_BUTTONS: ToolbarButton[] = [
     'audiotranslation',
     'camera',
-    'chat',
     'closedcaptions',
     'custom-panel',
     'desktop',
@@ -195,7 +193,6 @@ export const TOOLBAR_BUTTONS: ToolbarButton[] = [
  */
 export const NATIVE_TOOLBAR_BUTTONS: NativeToolbarButton[] = [
     'camera',
-    'chat',
     'hangup',
     'microphone',
     'overflowmenu',
@@ -208,7 +205,6 @@ export const NATIVE_TOOLBAR_BUTTONS: NativeToolbarButton[] = [
  * The toolbar buttons to show when in visitors mode.
  */
 export const VISITORS_MODE_BUTTONS: ToolbarButton[] = [
-    'chat',
     'closedcaptions',
     'fullscreen',
     'hangup',
