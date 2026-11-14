@@ -48,6 +48,7 @@ import { IGoogleApiState } from '../google-api/reducer';
 import { IInviteState } from '../invite/reducer';
 import { IJaaSState } from '../jaas/reducer';
 import { IKeyboardShortcutsState } from '../keyboard-shortcuts/types';
+import { IAuthState } from '../auth/types';
 import { ILargeVideoState } from '../large-video/reducer';
 import { ILobbyState } from '../lobby/reducer';
 import { IMobileAudioModeState } from '../mobile/audio-mode/reducer';
@@ -96,6 +97,7 @@ export interface IStore {
 
 export interface IReduxState {
     'features/analytics': IAnalyticsState;
+    'features/auth': IAuthState;
     'features/audio-translation': IAudioTranslationState;
     'features/authentication': IAuthenticationState;
     'features/av-moderation': IAVModerationState;

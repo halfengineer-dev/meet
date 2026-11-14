@@ -30,5 +30,6 @@ import '../gifs/middleware';
 import '../whiteboard/middleware.web';
 import '../file-sharing/middleware.web';
 import '../custom-panel/middleware.web';
+import '../auth/middleware';
 
 import './middlewares.any';

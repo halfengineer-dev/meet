@@ -150,7 +150,7 @@ function _navigate({ dispatch, getState }: IStore) {
     const state = getState();
     const { app } = state['features/base/app'];
 
-    _getRouteToRender(state).then((route: Object) => {
+    _getRouteToRender(state, dispatch).then((route: Object) => {
         dispatch(appWillNavigate(app, route));
 
         return app._navigate(route);

@@ -1,7 +1,6 @@
-import { Router } from 'mediasoup/node/lib/Router';
-import { WebRtcTransport } from 'mediasoup/node/lib/WebRtcTransport';
+import { types } from 'mediasoup';
 
-export async function createWebRtcTransport(router: Router): Promise<WebRtcTransport> {
+export async function createWebRtcTransport(router: types.Router): Promise<types.WebRtcTransport> {
   const publicIp = process.env.PUBLIC_IP || '127.0.0.1';
 
   const transport = await router.createWebRtcTransport({
@@ -25,7 +24,7 @@ export async function createWebRtcTransport(router: Router): Promise<WebRtcTrans
   });
 
   // Automatically handle transport closure
-  transport.on('dtlsstatechange', (dtlsState) => {
+  transport.on('dtlsstatechange', (dtlsState: types.DtlsState) => {
     if (dtlsState === 'closed' || dtlsState === 'failed') {
       transport.close();
     }

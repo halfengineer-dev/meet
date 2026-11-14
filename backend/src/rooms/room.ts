@@ -1,12 +1,12 @@
-import { Router } from 'mediasoup/node/lib/Router';
+import { types } from 'mediasoup';
 import { Participant } from './participant';
 
 export class Room {
   public id: string;
-  public router: Router;
+  public router: types.Router;
   private participants: Map<string, Participant> = new Map();
 
-  constructor(id: string, router: Router) {
+  constructor(id: string, router: types.Router) {
     this.id = id;
     this.router = router;
   }

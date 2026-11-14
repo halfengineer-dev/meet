@@ -1,4 +1,4 @@
-import { Consumer, Producer, WebRtcTransport } from 'mediasoup/node/lib/types';
+import { types } from 'mediasoup';
 
 export class Participant {
   public id: string;
@@ -6,13 +6,13 @@ export class Participant {
   public displayName: string;
 
   // Mediasoup Transports
-  public sendTransport: WebRtcTransport | null = null;
-  public recvTransport: WebRtcTransport | null = null;
+  public sendTransport: types.WebRtcTransport | null = null;
+  public recvTransport: types.WebRtcTransport | null = null;
 
   // Track the audio/video this participant is sending to the server
-  public producers: Map<string, Producer> = new Map();
+  public producers: Map<string, types.Producer> = new Map();
   // Track the audio/video this participant is receiving from others
-  public consumers: Map<string, Consumer> = new Map();
+  public consumers: Map<string, types.Consumer> = new Map();
 
   constructor(id: string, socketId: string, displayName: string) {
     this.id = id;
@@ -20,7 +20,7 @@ export class Participant {
     this.displayName = displayName;
   }
 
-  public addTransport(transport: WebRtcTransport, direction: 'send' | 'recv') {
+  public addTransport(transport: types.WebRtcTransport, direction: 'send' | 'recv') {
     if (direction === 'send') {
       this.sendTransport = transport;
     } else {
@@ -28,11 +28,11 @@ export class Participant {
     }
   }
 
-  public addProducer(producer: Producer) {
+  public addProducer(producer: types.Producer) {
     this.producers.set(producer.id, producer);
   }
 
-  public addConsumer(consumer: Consumer) {
+  public addConsumer(consumer: types.Consumer) {
     this.consumers.set(consumer.id, consumer);
   }
 

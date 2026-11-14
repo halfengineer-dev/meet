@@ -2,6 +2,7 @@ import BaseApp from '../../base/app/components/BaseApp';
 import { toURLString } from '../../base/util/uri';
 import { appNavigate } from '../actions';
 import { getDefaultURL } from '../functions';
+import { initAuth } from '../../auth/actions';
 
 /**
  * The type of React {@code Component} props of {@link AbstractApp}.
@@ -33,6 +34,12 @@ export class AbstractApp<P extends IProps = IProps> extends BaseApp<P> {
      */
     override async componentDidMount() {
         await super.componentDidMount();
+
+        // Restore authenticated user session before navigating
+        if (this.state.store) {
+            // @ts-ignore
+            await this.state.store.dispatch(initAuth());
+        }
 
         // If a URL was explicitly specified to this React Component, then
         // open it; otherwise, use a default.

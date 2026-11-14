@@ -395,6 +395,7 @@ export default class TestWelcomePage extends Component<{}, IState> {
                     <div className="test-why-grid">
                         <div className="test-why-left">
                             <div className="test-why-img-container">
+                                <div className="test-why-glow-blob" />
                                 <img
                                     src="images/meeting-interface.png"
                                     alt="Faceonn Video Meeting Interface"

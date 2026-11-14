@@ -1,13 +1,12 @@
 import * as mediasoup from 'mediasoup';
-import { Worker } from 'mediasoup/node/lib/Worker';
 import os from 'os';
 
 // Array to hold the workers
-const workers: Worker[] = [];
+const workers: mediasoup.types.Worker[] = [];
 let nextWorkerIdx = 0;
 
 export async function createWorkers() {
-  const numWorkers = os.cpus().length; // One worker per CPU core
+  const numWorkers = Math.max(1, os.cpus().length); // One worker per CPU core
   console.log(`[Media] Creating ${numWorkers} mediasoup Workers...`);
 
   const minPort = parseInt(process.env.MEDIASOUP_MIN_PORT || '10000', 10);
@@ -22,7 +21,6 @@ export async function createWorkers() {
 
     worker.on('died', () => {
       console.error(`[Media] mediasoup Worker ${worker.pid} died! Restarting...`);
-      // We could add logic to gracefully replace the worker here
     });
 
     workers.push(worker);
@@ -32,7 +30,7 @@ export async function createWorkers() {
 }
 
 // Simple round-robin algorithm to distribute rooms across CPU cores
-export function getNextWorker(): Worker {
+export function getNextWorker(): mediasoup.types.Worker {
   if (workers.length === 0) {
     throw new Error('No mediasoup workers available');
   }

@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { createHttpServer } from './server/http';
 import { createSocketServer } from './server/socket';
 import { createWorkers } from './media/worker-manager';
+import { initDatabase } from './db/database';
 
 dotenv.config();
 
@@ -11,18 +12,27 @@ const PORT = process.env.PORT || 3000;
 async function bootstrap() {
   console.log('🚀 Starting Faceonn Custom Backend...');
 
-  // 1. Initialize Express
+  // 1. Initialize Database & Migrations
+  await initDatabase();
+
+  // 2. Initialize Express
   const app = createHttpServer();
   const httpServer = http.createServer(app);
 
-  // 2. Initialize Socket.io Signaling
+  // 3. Initialize Authenticated Socket.io Signaling
   createSocketServer(httpServer);
 
-  // 3. Initialize Mediasoup Workers
-  await createWorkers();
+  // 4. Initialize Mediasoup Workers (skip if in pure test mode)
+  if (process.env.NODE_ENV !== 'test') {
+    try {
+      await createWorkers();
+    } catch (err) {
+      console.warn('⚠️ Mediasoup workers failed to initialize (continuing with HTTP/Signaling):', err);
+    }
+  }
 
   httpServer.listen(PORT, () => {
-    console.log(`✅ Server is running on http://localhost:${PORT}`);
+    console.log(`✅ Faceonn Backend is running on http://localhost:${PORT}`);
   });
 }
 

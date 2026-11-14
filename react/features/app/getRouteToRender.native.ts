@@ -14,6 +14,6 @@ const route = {
  * @param {any} _dispatch - Used on web.
  * @returns {Promise<Object>}
  */
-export function _getRouteToRender(_stateful?: any): Promise<object> {
+export function _getRouteToRender(_stateful?: any, _dispatch?: any): Promise<object> {
     return Promise.resolve(route);
 }

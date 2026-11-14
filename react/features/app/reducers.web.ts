@@ -22,5 +22,6 @@ import '../time-timer/reducer';
 import '../virtual-background/reducer';
 import '../web-hid/reducer';
 import '../file-sharing/reducer';
+import '../auth/reducer';
 
 import './reducers.any';
