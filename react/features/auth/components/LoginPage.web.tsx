@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IReduxState } from '../../app/types';
 import { login, clearAuthError } from '../actions';
@@ -13,6 +13,17 @@ export default function LoginPage() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
+
+    useEffect(() => {
+        document.documentElement.classList.add('faceonn-auth-html');
+        document.body.classList.add('faceonn-auth-body-active');
+        document.title = 'Faceonn — Sign In';
+
+        return () => {
+            document.documentElement.classList.remove('faceonn-auth-html');
+            document.body.classList.remove('faceonn-auth-body-active');
+        };
+    }, []);
 
     // Parse ?redirect= param from URL if present
     const searchParams = new URLSearchParams(window.location.search);

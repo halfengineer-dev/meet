@@ -4,23 +4,43 @@
    Faceonn New Test Landing Page Styles (/test)
    ========================================================================== */
 
-body.test-welcome-page-body {
-  margin: 0;
-  padding: 0;
-  background-color: #f8f9ff;
-  color: #0f172a;
-  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
+html.test-welcome-page-html,
+body.test-welcome-page-body,
+html:has(.test-home-container),
+body:has(.test-home-container) {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  background-color: #f8f9ff !important;
+  color: #0f172a !important;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overflow: visible !important;
+  -webkit-font-smoothing: antialiased !important;
+  scroll-behavior: smooth !important;
+}
+
+#react:has(.test-home-container),
+.test-welcome-page-html #react,
+.test-welcome-page-body #react {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
 }
 
 .test-home-container {
+  width: 100%;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   position: relative;
   background-color: #f8f9ff;
   color: #0f172a;
+  overflow-x: hidden;
 }
 
 .test-home-container * {

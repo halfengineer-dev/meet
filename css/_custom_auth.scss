@@ -2,6 +2,64 @@
    Faceonn Authentication & Dashboard Styles
    ========================================================================== */
 
+html.faceonn-dash-html,
+body.faceonn-dash-body,
+html:has(.faceonn-dash-layout),
+body:has(.faceonn-dash-layout) {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overflow: visible !important;
+  -webkit-font-smoothing: antialiased !important;
+}
+
+html.faceonn-dash-html.theme-dark,
+body.faceonn-dash-body.theme-dark {
+  background-color: #0b0f19 !important;
+  color: #f8fafc !important;
+}
+
+#react:has(.faceonn-dash-layout),
+.faceonn-dash-html #react,
+.faceonn-dash-body #react {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+
+html.faceonn-auth-html,
+body.faceonn-auth-body-active,
+html:has(.faceonn-auth-page),
+body:has(.faceonn-auth-page) {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  background-color: #0b0f19 !important;
+  color: #ffffff !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overflow: visible !important;
+}
+
+#react:has(.faceonn-auth-page),
+.faceonn-auth-html #react,
+.faceonn-auth-body-active #react {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 100% !important;
+  overflow: visible !important;
+}
+
 .faceonn-auth-page {
   min-height: 100vh;
   display: flex;

@@ -45,11 +45,13 @@ export default class TestWelcomePage extends Component<{}, IState> {
     }
 
     override componentDidMount() {
+        document.documentElement.classList.add('test-welcome-page-html');
         document.body.classList.add('test-welcome-page-body');
         document.title = 'Faceonn | Video meetings that bring people closer';
     }
 
     override componentWillUnmount() {
+        document.documentElement.classList.remove('test-welcome-page-html');
         document.body.classList.remove('test-welcome-page-body');
     }
 

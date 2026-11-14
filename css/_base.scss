@@ -18,14 +18,14 @@ textarea {
     user-select: text;
 }
 
-html {
+html:not(.test-welcome-page-html):not(.faceonn-dash-html):not(.faceonn-auth-html) {
     height: 100%;
     width: 100%;
     overflow: hidden;
     overflow: clip;
 }
 
-body {
+body:not(.test-welcome-page-body):not(.faceonn-dash-body):not(.faceonn-auth-body) {
     margin: 0px;
     width: 100%;
     height: 100%;

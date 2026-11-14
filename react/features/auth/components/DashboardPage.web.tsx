@@ -37,6 +37,25 @@ export default function DashboardPage() {
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
     useEffect(() => {
+        document.documentElement.classList.add('faceonn-dash-html');
+        document.body.classList.add('faceonn-dash-body');
+        document.title = 'Faceonn — Dashboard';
+
+        if (theme === 'dark') {
+            document.documentElement.classList.add('theme-dark');
+            document.body.classList.add('theme-dark');
+        } else {
+            document.documentElement.classList.remove('theme-dark');
+            document.body.classList.remove('theme-dark');
+        }
+
+        return () => {
+            document.documentElement.classList.remove('faceonn-dash-html', 'theme-dark');
+            document.body.classList.remove('faceonn-dash-body', 'theme-dark');
+        };
+    }, [theme]);
+
+    useEffect(() => {
         if (accessToken) {
             setLoadingMeetings(true);
             authApiClient.getMeetings(accessToken)

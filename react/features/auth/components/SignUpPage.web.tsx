@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IReduxState } from '../../app/types';
 import { register, clearAuthError } from '../actions';
@@ -15,6 +15,17 @@ export default function SignUpPage() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [localError, setLocalError] = useState<string | null>(null);
+
+    useEffect(() => {
+        document.documentElement.classList.add('faceonn-auth-html');
+        document.body.classList.add('faceonn-auth-body-active');
+        document.title = 'Faceonn — Sign Up';
+
+        return () => {
+            document.documentElement.classList.remove('faceonn-auth-html');
+            document.body.classList.remove('faceonn-auth-body-active');
+        };
+    }, []);
 
     const searchParams = new URLSearchParams(window.location.search);
     const redirectUrl = searchParams.get('redirect');
