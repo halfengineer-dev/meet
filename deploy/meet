@@ -19,8 +19,9 @@ TURN_DOMAIN="turn.faceonn.com"
 PUBLIC_IP="200.234.42.175"
 SRC_DIR="/root/meet"
 STACK_DIR="/root/freshcall"
+[ -d "/root/docker-jitsi-meet" ] && STACK_DIR="/root/docker-jitsi-meet"
 WEB_ROOT="/root/custom-meet"
-BACKUP_TAR="/root/freshcall/frontend-previous.tar.gz"
+BACKUP_TAR="$STACK_DIR/frontend-previous.tar.gz"
 LOG_DIR="/var/log/meet"
 LOCK_FILE="/run/meet-redeploy.lock"
 NODE_IMAGE="node:24-bookworm"
@@ -49,7 +50,13 @@ die() {
     exit 1
 }
 
-compose() { (cd "$STACK_DIR" && docker compose "$@"); }
+if command -v docker >/dev/null 2>&1; then
+    compose() { (cd "$STACK_DIR" && docker compose "$@"); }
+elif command -v podman-compose >/dev/null 2>&1; then
+    compose() { (cd "$STACK_DIR" && podman-compose "$@"); }
+else
+    compose() { (cd "$STACK_DIR" && podman compose "$@"); }
+fi
 
 http_code() { curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$@" 2>/dev/null || true; }
 
@@ -84,11 +91,23 @@ run_checks() {
     local code svc state
 
     step "Services"
-    if ! systemctl is-active --quiet docker; then
-        bad "Docker is not running, so nothing can be served." "Run: systemctl start docker"
+    if systemctl is-active --quiet docker; then
+        ok "Docker is running"
+    elif systemctl is-active --quiet jitsi-meet; then
+        ok "Jitsi Meet service is running"
+    else
+        bad "Neither Docker nor Jitsi Meet service is running." "Run: systemctl start jitsi-meet"
     fi
+
+    if systemctl is-active --quiet faceonn-backend; then
+        ok "Faceonn Backend service is running"
+    else
+        warn "Faceonn Backend service is not active." "Run: systemctl start faceonn-backend"
+    fi
+
     for svc in $SERVICES; do
         state=$(compose ps --format '{{.State}}' "$svc" 2>/dev/null | head -1)
+        [ -z "$state" ] && state=$(podman ps --filter "name=$svc" --format '{{.State}}' 2>/dev/null | head -1)
         case "$state" in
             running) ok "$svc is running" ;;
             restarting)
