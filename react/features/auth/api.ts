@@ -1,5 +1,5 @@
 import { API_BASE_URL } from './constants';
-import { IUser, IMeetingSession } from './types';
+import { IUser, IMeeting, IMeetingSession } from './types';
 
 interface AuthResponse {
     user: IUser;
@@ -58,6 +58,15 @@ export class AuthApiClient {
 
     public async getMe(accessToken: string): Promise<{ user: IUser }> {
         return this.request<{ user: IUser }>('/api/auth/me', {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async getMeetings(accessToken: string): Promise<{ meetings: IMeeting[] }> {
+        return this.request<{ meetings: IMeeting[] }>('/api/meetings', {
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${accessToken}`

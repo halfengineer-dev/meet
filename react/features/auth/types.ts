@@ -19,6 +19,15 @@ export interface IAuthState {
     redirectTarget: string | null;
 }
 
+export interface IMeeting {
+    id: string;
+    roomId: string;
+    title: string;
+    ownerId: string;
+    status: string;
+    createdAt: string;
+}
+
 export interface IMeetingSession {
     meetingId: string;
     roomId: string;
