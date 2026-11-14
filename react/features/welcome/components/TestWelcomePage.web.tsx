@@ -861,14 +861,14 @@ export default class TestWelcomePage extends Component<{}, IState> {
                             <a href="#footer">Cookies</a>
                         </div>
                     </div>
+                </div>
 
-                    {/* Glowing bottom waves */}
-                    <div className="test-footer-waves-wrapper">
-                        <img
-                            src="images/footer-waves.png"
-                            alt=""
-                            className="test-footer-waves-img" />
-                    </div>
+                {/* Glowing bottom waves placed behind the footer */}
+                <div className="test-footer-waves-wrapper" aria-hidden="true">
+                    <img
+                        src="images/footer-waves.png"
+                        alt=""
+                        className="test-footer-waves-img" />
                 </div>
             </footer>
         );

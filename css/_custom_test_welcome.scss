@@ -970,7 +970,7 @@ body:has(.test-home-container) {
 
 .test-footer-section {
   background: #060714;
-  padding: 80px 24px 0;
+  padding: 80px 24px 30px;
   color: #e2e8f0;
   position: relative;
   overflow: hidden;
@@ -1233,12 +1233,14 @@ body:has(.test-home-container) {
 /* Footer Bottom Bar */
 .test-footer-bottom {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 24px 0 32px;
+  padding: 28px 0 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 13.5px;
   color: #64748b;
+  position: relative;
+  z-index: 2;
 }
 
 .test-footer-legal {
@@ -1256,17 +1258,26 @@ body:has(.test-home-container) {
   color: #cbd5e1;
 }
 
+/* Ambient bottom waves placed BEHIND footer */
 .test-footer-waves-wrapper {
-  margin: 0 -24px;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  pointer-events: none;
+  z-index: 1;
   line-height: 0;
+  overflow: hidden;
 }
 
 .test-footer-waves-img {
   width: 100%;
-  max-height: 160px;
+  height: 220px;
   object-fit: cover;
+  object-position: bottom center;
   display: block;
-  opacity: 0.95;
+  opacity: 0.9;
 }
 
 /* ==========================================================================
