@@ -233,6 +233,25 @@ export class AuthApiClient {
         });
     }
 
+    public async guestJoinMeeting(
+        roomId: string,
+        displayName: string,
+        passcode?: string
+    ): Promise<{
+        meeting: IMeeting;
+        token: string;
+        role: 'participant';
+        displayName: string;
+    }> {
+        return this.request(`/api/meetings/${encodeURIComponent(roomId)}/guest-join`, {
+            method: 'POST',
+            body: JSON.stringify({
+                displayName,
+                ...(passcode ? { passcode } : {})
+            })
+        });
+    }
+
     public async getMeetingToken(
         roomId: string,
         accessToken: string,

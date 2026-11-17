@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import { appWillNavigate } from '../../base/app/actions';
 import { setJWT } from '../../base/jwt/actions';
+import { updateSettings } from '../../base/settings/actions';
 import { IReduxState } from '../../app/types';
 import { _getRouteToRender } from '../../app/getRouteToRender';
 import { logout } from '../actions';
@@ -14,6 +15,9 @@ type GateMode =
     | 'loading'
     | 'waiting_for_host'
     | 'host_pre_start'
+    | 'guest_join'
+    | 'auth_required'
+    | 'not_found'
     | 'passcode_required'
     | 'cancelled'
     | 'ended'
@@ -85,8 +89,21 @@ export default function MeetingWaitingRoom() {
     const [info, setInfo] = useState<IPublicMeetingInfo | null>(null);
     const [previewParticipantView, setPreviewParticipantView] = useState(false);
 
-    // Passcode state
-    const [passcode, setPasscode] = useState('');
+    // Guest join & passcode state
+    const [guestName, setGuestName] = useState(() => {
+        try {
+            return window.localStorage.getItem('faceonn_guest_name') || '';
+        } catch (_) {
+            return '';
+        }
+    });
+    const [passcode, setPasscode] = useState(() => {
+        try {
+            return new URLSearchParams(window.location.search).get('passcode') || '';
+        } catch (_) {
+            return '';
+        }
+    });
     const [showPasscode, setShowPasscode] = useState(false);
     const [passcodeError, setPasscodeError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -174,8 +191,7 @@ export default function MeetingWaitingRoom() {
 
             if (!publicInfo.exists) {
                 if (!isUserAuth) {
-                    const target = window.location.pathname + window.location.search;
-                    window.location.href = `/login?redirect=${encodeURIComponent(target)}`;
+                    setMode('not_found');
                     return;
                 }
                 await attemptTokenJoin();
@@ -209,11 +225,17 @@ export default function MeetingWaitingRoom() {
 
             // Meeting is ACTIVE (host started!) or joinBeforeHost === true
             if (!isUserAuth) {
-                setStatusMessage('The host has started the meeting! Redirecting to sign in...');
-                const target = window.location.pathname + window.location.search;
-                setTimeout(() => {
-                    window.location.href = `/login?redirect=${encodeURIComponent(target)}`;
-                }, 900);
+                if (publicInfo.requireAuthentication) {
+                    setStatusMessage(isPoll ? 'The host has started the meeting! Sign in below to join.' : null);
+                    setMode('auth_required');
+                    return;
+                }
+
+                // Zoom-style Guest Join without creating an account!
+                if (isPoll) {
+                    setStatusMessage('The host has started the meeting! Enter your name below to join.');
+                }
+                setMode('guest_join');
                 return;
             }
 
@@ -264,6 +286,55 @@ export default function MeetingWaitingRoom() {
             await enterConferenceWithToken(res.token);
         } catch (err: any) {
             setStatusMessage(err.message || 'Failed to start meeting.');
+            setSubmitting(false);
+        }
+    };
+
+    const handleGuestJoinSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const trimmedName = guestName.trim();
+        if (!trimmedName) {
+            setPasscodeError('Please enter your name to join the meeting.');
+            return;
+        }
+        if (info?.passcodeEnabled && !passcode.trim()) {
+            setPasscodeError('Please enter the meeting passcode.');
+            return;
+        }
+
+        setSubmitting(true);
+        setPasscodeError(null);
+        try {
+            const res = await authApiClient.guestJoinMeeting(
+                roomId,
+                trimmedName,
+                info?.passcodeEnabled ? passcode.trim() : undefined
+            );
+
+            try {
+                window.localStorage.setItem('faceonn_guest_name', res.displayName);
+            } catch (_) {
+                // Ignore storage quota errors
+            }
+
+            dispatch(updateSettings({ displayName: res.displayName }));
+            await enterConferenceWithToken(res.token);
+        } catch (err: any) {
+            if (err.code === 'WAITING_FOR_HOST') {
+                setMode('waiting_for_host');
+            } else if (err.code === 'AUTH_REQUIRED') {
+                setMode('auth_required');
+            } else if (err.code === 'MEETING_CANCELLED') {
+                setMode('cancelled');
+            } else if (err.code === 'MEETING_ENDED') {
+                setMode('ended');
+            } else if (err.code === 'MEETING_NOT_FOUND') {
+                setMode('not_found');
+            } else if (err.code === 'INVALID_PASSCODE') {
+                setPasscodeError('Incorrect meeting passcode. Please try again.');
+            } else {
+                setPasscodeError(err.message || 'Unable to join meeting right now.');
+            }
             setSubmitting(false);
         }
     };
@@ -570,6 +641,164 @@ export default function MeetingWaitingRoom() {
                                     className="waiting-btn-ghost"
                                     onClick={handleLeave}>
                                     ← Back to Dashboard
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Zoom-Style Guest Join Screen (No Account Required!) */}
+                    {effectiveMode === 'guest_join' && info && (
+                        <div className="waiting-center-state">
+                            <div className="waiting-host-orb">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                                </svg>
+                            </div>
+
+                            <span className="waiting-status-badge live-ready">● Ready to Join</span>
+
+                            <h1>Join {info.title || 'Faceonn Meeting'}</h1>
+                            <p className="waiting-subtitle">
+                                {statusMessage
+                                    || `Hosted by ${info.hostName || 'Meeting Host'} • Meeting ID: ${info.roomId}`}
+                            </p>
+
+                            <form className="waiting-passcode-form" onSubmit={handleGuestJoinSubmit}>
+                                <div className="guest-field-wrap">
+                                    <label htmlFor="faceonn-guest-name">Your Name</label>
+                                    <div className="passcode-input-group">
+                                        <input
+                                            id="faceonn-guest-name"
+                                            type="text"
+                                            placeholder="Enter your name"
+                                            value={guestName}
+                                            maxLength={80}
+                                            onChange={(e) => {
+                                                setGuestName(e.target.value);
+                                                if (passcodeError) setPasscodeError(null);
+                                            }}
+                                            autoFocus
+                                            disabled={submitting} />
+                                    </div>
+                                </div>
+
+                                {info.passcodeEnabled && (
+                                    <div className="guest-field-wrap">
+                                        <label htmlFor="faceonn-guest-passcode">Meeting Passcode</label>
+                                        <div className="passcode-input-group">
+                                            <input
+                                                id="faceonn-guest-passcode"
+                                                type={showPasscode ? 'text' : 'password'}
+                                                placeholder="Enter meeting passcode"
+                                                value={passcode}
+                                                onChange={(e) => {
+                                                    setPasscode(e.target.value);
+                                                    if (passcodeError) setPasscodeError(null);
+                                                }}
+                                                disabled={submitting} />
+                                            <button
+                                                type="button"
+                                                className="passcode-toggle-btn"
+                                                onClick={() => setShowPasscode(!showPasscode)}>
+                                                {showPasscode ? 'Hide' : 'Show'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {passcodeError && (
+                                    <div className="waiting-error-inline">⚠️ {passcodeError}</div>
+                                )}
+
+                                <div className="waiting-actions-row" style={{ marginTop: '6px' }}>
+                                    <button
+                                        type="submit"
+                                        className="waiting-btn-primary"
+                                        disabled={submitting}>
+                                        {submitting ? 'Joining Meeting...' : 'Join Meeting →'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="waiting-btn-outline"
+                                        onClick={handleLeave}>
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div className="waiting-host-footer">
+                                <span>No account required to join. Have a Faceonn account? </span>
+                                <button
+                                    type="button"
+                                    className="waiting-inline-link"
+                                    onClick={handleSignInAsHost}>
+                                    Sign in
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Auth Required Gate (only when host explicitly enabled "Require Faceonn Authentication") */}
+                    {effectiveMode === 'auth_required' && (
+                        <div className="waiting-center-state">
+                            <div className="waiting-host-orb">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                </svg>
+                            </div>
+
+                            <span className="waiting-status-badge host">🛡️ Authentication Required</span>
+
+                            <h1>Sign in to join this meeting</h1>
+                            <p className="waiting-subtitle">
+                                {statusMessage
+                                    || `The host (${info?.hostName || 'Organizer'}) restricted "${info?.title || roomId}" to signed-in Faceonn users.`}
+                            </p>
+
+                            <div className="waiting-actions-row">
+                                <button
+                                    type="button"
+                                    className="waiting-btn-primary"
+                                    onClick={handleSignInAsHost}>
+                                    Sign In to Join →
+                                </button>
+                                <button
+                                    type="button"
+                                    className="waiting-btn-outline"
+                                    onClick={handleLeave}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Meeting Not Found */}
+                    {effectiveMode === 'not_found' && (
+                        <div className="waiting-center-state">
+                            <div className="waiting-ended-orb">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                            </div>
+
+                            <h1>Meeting not found</h1>
+                            <p className="waiting-subtitle">
+                                No active or scheduled meeting was found for ID <strong>{roomId}</strong>. Please check the link or ask the host for the correct meeting URL.
+                            </p>
+
+                            <div className="waiting-actions-row">
+                                <button
+                                    type="button"
+                                    className="waiting-btn-primary"
+                                    onClick={handleSignInAsHost}>
+                                    Sign In to Host a Meeting
+                                </button>
+                                <button
+                                    type="button"
+                                    className="waiting-btn-outline"
+                                    onClick={handleLeave}>
+                                    Go to Home
                                 </button>
                             </div>
                         </div>

@@ -1512,6 +1512,25 @@
         background: #eef2ff;
         color: #4338ca;
     }
+
+    &.live-ready {
+        background: #dcfce7;
+        color: #15803d;
+    }
+}
+
+.guest-field-wrap {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    label {
+        font-size: 13px;
+        font-weight: 700;
+        color: #334155;
+    }
 }
 
 .waiting-details-box {

@@ -388,6 +388,109 @@ export class MeetingService {
     };
   }
 
+  public async guestJoinMeeting(
+    roomId: string,
+    displayName: string,
+    passcode?: string
+  ): Promise<{
+    meeting: MeetingRecord;
+    token: string;
+    role: 'participant';
+    displayName: string;
+  }> {
+    const cleanName = (displayName || '').trim();
+    if (!cleanName) {
+      const err = new Error('Please enter your name to join the meeting');
+      (err as any).statusCode = 400;
+      (err as any).code = 'DISPLAY_NAME_REQUIRED';
+      throw err;
+    }
+    if (cleanName.length > 80) {
+      const err = new Error('Display name cannot exceed 80 characters');
+      (err as any).statusCode = 400;
+      (err as any).code = 'INVALID_DISPLAY_NAME';
+      throw err;
+    }
+
+    const normalizedRoom = roomId.toLowerCase().trim();
+    const meeting = await meetingRepository.findByRoomId(normalizedRoom);
+
+    if (!meeting) {
+      const err = new Error('Meeting not found. Please check the Meeting ID or link.');
+      (err as any).statusCode = 404;
+      (err as any).code = 'MEETING_NOT_FOUND';
+      throw err;
+    }
+
+    if (meeting.status === 'cancelled') {
+      const err = new Error('This scheduled meeting has been cancelled by the host.');
+      (err as any).statusCode = 410;
+      (err as any).code = 'MEETING_CANCELLED';
+      throw err;
+    }
+
+    if (meeting.status === 'ended') {
+      const err = new Error('This meeting has already ended.');
+      (err as any).statusCode = 410;
+      (err as any).code = 'MEETING_ENDED';
+      throw err;
+    }
+
+    if (
+      meeting.is_scheduled &&
+      meeting.settings.joinBeforeHost === false &&
+      meeting.status === 'scheduled'
+    ) {
+      const err = new Error('The host has not started this meeting yet. Please wait for the host.');
+      (err as any).statusCode = 403;
+      (err as any).code = 'WAITING_FOR_HOST';
+      throw err;
+    }
+
+    if (meeting.settings.requireAuthentication) {
+      const err = new Error('The host requires you to sign in to a Faceonn account to join this meeting.');
+      (err as any).statusCode = 401;
+      (err as any).code = 'AUTH_REQUIRED';
+      throw err;
+    }
+
+    if (meeting.settings.passcodeEnabled && meeting.passcode_hash) {
+      if (!passcode || !passcode.trim()) {
+        const err = new Error('Passcode required to join this meeting');
+        (err as any).statusCode = 403;
+        (err as any).code = 'PASSCODE_REQUIRED';
+        throw err;
+      }
+
+      if (!this.verifyPasscode(meeting.passcode_hash, passcode)) {
+        const err = new Error('Invalid meeting passcode');
+        (err as any).statusCode = 403;
+        (err as any).code = 'INVALID_PASSCODE';
+        throw err;
+      }
+    }
+
+    const guestId = `guest-${crypto.randomUUID()}`;
+    const token = generateJitsiMeetingToken({
+      user: {
+        id: guestId,
+        name: cleanName,
+        email: '',
+        avatar_url: null,
+      },
+      room: meeting.room_id,
+      isModerator: false,
+      meetingSettings: meeting.settings,
+    });
+
+    return {
+      meeting,
+      token,
+      role: 'participant',
+      displayName: cleanName,
+    };
+  }
+
   public async getMeetingById(
     userId: string,
     meetingId: string,

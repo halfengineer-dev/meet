@@ -17,6 +17,29 @@ meetingRouter.get('/:roomId/public-info', optionalAuth, async (req: Authenticate
   }
 });
 
+// Public guest join endpoint (Zoom-style join without creating an account)
+meetingRouter.post('/:roomId/guest-join', async (req, res) => {
+  try {
+    const roomId = Array.isArray(req.params.roomId) ? req.params.roomId[0] : req.params.roomId;
+    const { displayName, passcode } = req.body || {};
+
+    const result = await meetingService.guestJoinMeeting(roomId, displayName, passcode);
+
+    res.json({
+      meeting: sanitizeMeeting(result.meeting),
+      token: result.token,
+      role: result.role,
+      displayName: result.displayName,
+    });
+  } catch (err: any) {
+    const statusCode = err.statusCode || 403;
+    res.status(statusCode).json({
+      error: err.message || 'Failed to join meeting as guest',
+      code: err.code || 'GUEST_JOIN_FAILED',
+    });
+  }
+});
+
 // Protect ALL remaining meeting routes with requireAuth
 meetingRouter.use(requireAuth);
 

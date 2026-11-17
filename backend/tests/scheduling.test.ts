@@ -254,6 +254,67 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
       );
       expect(joined.role).toBe('participant');
     });
+
+    it('allows unauthenticated guests to join without an account when requireAuthentication is false, while still enforcing waiting-for-host and passcode', async () => {
+      const futureDate = new Date(Date.now() + 3600 * 1000).toISOString();
+      const scheduled = await meetingService.scheduleMeeting(hostUser.id, {
+        title: 'Open Guest Webinar',
+        scheduledAt: futureDate,
+        timezone: 'UTC',
+        durationMinutes: 60,
+        settings: {
+          joinBeforeHost: false,
+          requireAuthentication: false,
+          passcodeEnabled: true,
+          passcode: 'GuestPass42',
+        },
+      });
+
+      // Guest cannot join non-existent room
+      await expect(
+        meetingService.guestJoinMeeting('non-existent-room', 'Jane Guest')
+      ).rejects.toThrow('Meeting not found');
+
+      // Guest blocked before host starts
+      try {
+        await meetingService.guestJoinMeeting(scheduled.meeting.room_id, 'Jane Guest', 'GuestPass42');
+        expect.unreachable('Should have rejected with WAITING_FOR_HOST');
+      } catch (err: any) {
+        expect(err.code).toBe('WAITING_FOR_HOST');
+      }
+
+      // Host starts meeting
+      await meetingService.startMeeting(hostUser.id, scheduled.meeting.id);
+
+      // Guest blocked without passcode
+      try {
+        await meetingService.guestJoinMeeting(scheduled.meeting.room_id, 'Jane Guest');
+        expect.unreachable('Should have rejected with PASSCODE_REQUIRED');
+      } catch (err: any) {
+        expect(err.code).toBe('PASSCODE_REQUIRED');
+      }
+
+      // Guest joins cleanly with name + right passcode -> receives non-moderator token
+      const guestJoin = await meetingService.guestJoinMeeting(
+        scheduled.meeting.room_id,
+        'Jane Guest',
+        'GuestPass42'
+      );
+      expect(guestJoin.role).toBe('participant');
+      expect(guestJoin.displayName).toBe('Jane Guest');
+      expect(guestJoin.token).toBeDefined();
+
+      // If host enables requireAuthentication, guests are blocked with AUTH_REQUIRED
+      await meetingService.updateMeeting(hostUser.id, scheduled.meeting.id, {
+        settings: { requireAuthentication: true },
+      });
+      try {
+        await meetingService.guestJoinMeeting(scheduled.meeting.room_id, 'Jane Guest', 'GuestPass42');
+        expect.unreachable('Should have rejected with AUTH_REQUIRED');
+      } catch (err: any) {
+        expect(err.code).toBe('AUTH_REQUIRED');
+      }
+    });
   });
 
   describe('Section D & F: Calendar Integration & RFC 5545 ICS Export', () => {

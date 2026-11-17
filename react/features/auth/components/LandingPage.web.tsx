@@ -98,13 +98,6 @@ class LandingPage extends Component<IProps, IState> {
         }
 
         const targetRoom = encodeURIComponent(room);
-
-        if (!this.props._isAuthenticated) {
-            // Business rule: Unauthenticated users cannot join meetings!
-            window.location.href = `/login?redirect=/${targetRoom}`;
-            return;
-        }
-
         window.location.href = `/${targetRoom}`;
     }
 

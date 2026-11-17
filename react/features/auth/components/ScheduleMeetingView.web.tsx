@@ -66,7 +66,7 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
     const [showPasscode, setShowPasscode] = useState(false);
     const [waitingRoomEnabled, setWaitingRoomEnabled] = useState(true);
     const [joinBeforeHost, setJoinBeforeHost] = useState(false);
-    const [requireAuthentication, setRequireAuthentication] = useState(true);
+    const [requireAuthentication, setRequireAuthentication] = useState(false);
 
     // Section D: Video, Audio & Permissions
     const [hostVideoEnabled, setHostVideoEnabled] = useState(true);

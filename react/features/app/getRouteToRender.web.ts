@@ -137,13 +137,12 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
             logger.warn('Failed to fetch public meeting info, falling back to auth gate', publicErr);
         }
 
-        // Step B: Critical business rule — unauthenticated users cannot join active rooms
+        // Step B: Unauthenticated guests join existing meetings via the Zoom-style Guest Join / Waiting screen
+        // (No account required unless the host explicitly enabled "Require Faceonn Authentication"!)
         if (!isUserAuth) {
-            const target = window.location.pathname + window.location.search;
-            return {
-                component: undefined,
-                href: `/login?redirect=${encodeURIComponent(target)}`
-            };
+            const route = _getEmptyRoute();
+            route.component = MeetingWaitingRoom;
+            return route;
         }
 
         // Step C: Authorize with backend and ensure Jitsi JWT is set before connecting
