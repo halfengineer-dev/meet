@@ -121,7 +121,7 @@ class LandingPage extends Component<IProps, IState> {
             try {
                 const url = new URL(link);
                 targetRoom = url.pathname.replace(/^\/+/, '');
-            } catch (_) {}
+            } catch (_) { }
             window.location.href = `/login?redirect=/${encodeURIComponent(targetRoom)}`;
             return;
         }

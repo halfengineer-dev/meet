@@ -1,12 +1,17 @@
-/* eslint-disable react/jsx-no-bind, react-native/no-inline-styles, @typescript-eslint/no-unused-vars, @stylistic/max-statements-per-line */
+/* eslint-disable react/jsx-no-bind, react-native/no-inline-styles, @stylistic/max-statements-per-line */
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { generateRoomWithoutSeparator } from '@jitsi/js-utils/random';
 import { IReduxState } from '../../app/types';
 import { createMeeting, logout } from '../actions';
 import { getAuthUser, getAccessToken } from '../functions';
 import { authApiClient } from '../api';
-import { IMeeting } from '../types';
+import { IMeeting, IScheduleMeetingResponse } from '../types';
+import { getRelativeMeetingTime, formatMeetingInvitationText } from '../utils/calendar';
+import ScheduleMeetingView from './ScheduleMeetingView.web';
+import ScheduleConfirmationView from './ScheduleConfirmationView.web';
+import MeetingDetailsView from './MeetingDetailsView.web';
+import EditMeetingView from './EditMeetingView.web';
+import PasscodePromptModal from './PasscodePromptModal.web';
 
 export default function DashboardPage() {
     const dispatch = useDispatch();
@@ -14,27 +19,53 @@ export default function DashboardPage() {
     const accessToken = useSelector((state: IReduxState) => getAccessToken(state));
 
     const [activeTab, setActiveTab] = useState<'home' | 'meetings' | 'recordings' | 'settings' | 'profile'>('home');
+    const [meetingsSubTab, setMeetingsSubTab] = useState<'upcoming' | 'previous' | 'personal'>('upcoming');
+    const [meetingsViewMode, setMeetingsViewMode] = useState<'list' | 'schedule' | 'confirmation' | 'details' | 'edit'>('list');
+    const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+    const [scheduleResult, setScheduleResult] = useState<IScheduleMeetingResponse | null>(null);
+
     const [joinInput, setJoinInput] = useState('');
     const [showJoinModal, setShowJoinModal] = useState(false);
-    const [showScheduleModal, setShowScheduleModal] = useState(false);
     const [showProModal, setShowProModal] = useState(false);
     const [showUserDropdown, setShowUserDropdown] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
 
-    // Schedule meeting state
-    const [scheduleTopic, setScheduleTopic] = useState('Team Sync');
-    const [scheduleDate, setScheduleDate] = useState(() => new Date().toISOString().split('T')[0]);
-    const [scheduleTime, setScheduleTime] = useState('11:00');
-    const [generatedScheduleRoom, setGeneratedScheduleRoom] = useState(() => generateRoomWithoutSeparator());
-    const [copied, setCopied] = useState(false);
-
     // Meetings list state
-    const [meetings, setMeetings] = useState<IMeeting[]>([]);
-    const [loadingMeetings, setLoadingMeetings] = useState(false);
+    const [upcomingMeetings, setUpcomingMeetings] = useState<IMeeting[]>([]);
+    const [pastMeetings, setPastMeetings] = useState<IMeeting[]>([]);
+    const [loadingUpcoming, setLoadingUpcoming] = useState(false);
+    const [loadingPast, setLoadingPast] = useState(false);
+
+    // Cancel modal state from list
+    const [meetingToCancel, setMeetingToCancel] = useState<IMeeting | null>(null);
+    const [cancelScope, setCancelScope] = useState<'occurrence' | 'series'>('occurrence');
+    const [cancelling, setCancelling] = useState(false);
+
+    // Passcode modal state
+    const [passcodeModalRoom, setPasscodeModalRoom] = useState<string | null>(null);
+    const [passcodeModalError, setPasscodeModalError] = useState<string | null>(null);
+
+    // Copy toast indicator
+    const [copiedMeetingId, setCopiedMeetingId] = useState<string | null>(null);
 
     // Dark/Light theme toggle
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+    // Parse URL error if redirected from meeting room
+    const [urlBannerError, setUrlBannerError] = useState<string | null>(null);
+
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const err = params.get('error');
+            if (err) {
+                setUrlBannerError(decodeURIComponent(err));
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        } catch (_) {}
+    }, []);
 
     useEffect(() => {
         document.documentElement.classList.add('faceonn-dash-html');
@@ -55,17 +86,38 @@ export default function DashboardPage() {
         };
     }, [theme]);
 
+    const fetchUpcomingMeetings = () => {
+        if (!accessToken) return;
+        setLoadingUpcoming(true);
+        authApiClient
+            .getUpcomingMeetings(accessToken)
+            .then(data => {
+                if (data && data.meetings) {
+                    setUpcomingMeetings(data.meetings);
+                }
+            })
+            .catch(() => {})
+            .finally(() => setLoadingUpcoming(false));
+    };
+
+    const fetchPastMeetings = () => {
+        if (!accessToken) return;
+        setLoadingPast(true);
+        authApiClient
+            .getPastMeetings(accessToken)
+            .then(data => {
+                if (data && data.meetings) {
+                    setPastMeetings(data.meetings);
+                }
+            })
+            .catch(() => {})
+            .finally(() => setLoadingPast(false));
+    };
+
     useEffect(() => {
         if (accessToken) {
-            setLoadingMeetings(true);
-            authApiClient.getMeetings(accessToken)
-                .then(data => {
-                    if (data && data.meetings) {
-                        setMeetings(data.meetings);
-                    }
-                })
-                .catch(() => {})
-                .finally(() => setLoadingMeetings(false));
+            fetchUpcomingMeetings();
+            fetchPastMeetings();
         }
     }, [accessToken]);
 
@@ -96,15 +148,42 @@ export default function DashboardPage() {
         window.location.href = `/${encodeURIComponent(room)}`;
     };
 
-    const handleCopyScheduleLink = () => {
-        const link = `${window.location.origin}/${generatedScheduleRoom}`;
+    const handleCopyMeetingLink = (roomId: string, id: string) => {
+        const link = `${window.location.origin}/${roomId}`;
         navigator.clipboard.writeText(link);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        setCopiedMeetingId(id);
+        setTimeout(() => setCopiedMeetingId(null), 2000);
     };
 
-    const handleStartScheduledMeeting = () => {
-        window.location.href = `/${generatedScheduleRoom}`;
+    const handleCopyMeetingInvite = (meeting: IMeeting) => {
+        const text = formatMeetingInvitationText(meeting, user?.name, window.location.origin);
+        navigator.clipboard.writeText(text);
+        setCopiedMeetingId(`invite-${meeting.id}`);
+        setTimeout(() => setCopiedMeetingId(null), 2000);
+    };
+
+    const handleStartOrJoinMeeting = (meeting: IMeeting) => {
+        window.location.href = `/${meeting.roomId}`;
+    };
+
+    const handleConfirmCancelFromList = async () => {
+        if (!meetingToCancel || !accessToken) return;
+        setCancelling(true);
+        try {
+            await authApiClient.cancelMeeting(meetingToCancel.id, accessToken, cancelScope);
+            setMeetingToCancel(null);
+            fetchUpcomingMeetings();
+            fetchPastMeetings();
+        } catch (err: any) {
+            alert(err.message || 'Failed to cancel meeting');
+        } finally {
+            setCancelling(false);
+        }
+    };
+
+    const handleOpenSchedule = () => {
+        setActiveTab('meetings');
+        setMeetingsViewMode('schedule');
     };
 
     const handleLogout = () => {
@@ -124,6 +203,7 @@ export default function DashboardPage() {
     };
 
     const userInitials = getInitials(displayName);
+    const pmi = user?.pmi || (user?.id ? `pmi-${user.id.slice(0, 8)}` : 'my-personal-room');
 
     return (
         <div className={`faceonn-dash-layout theme-${theme}`}>
@@ -144,7 +224,10 @@ export default function DashboardPage() {
                         <button
                             type="button"
                             className={`faceonn-dash-nav-item ${activeTab === 'home' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('home')}>
+                            onClick={() => {
+                                setActiveTab('home');
+                                setMeetingsViewMode('list');
+                            }}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill={activeTab === 'home' ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
                                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                                 <polyline points="9 22 9 12 15 12 15 22" />
@@ -155,7 +238,10 @@ export default function DashboardPage() {
                         <button
                             type="button"
                             className={`faceonn-dash-nav-item ${activeTab === 'meetings' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('meetings')}>
+                            onClick={() => {
+                                setActiveTab('meetings');
+                                setMeetingsViewMode('list');
+                            }}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                                 <line x1="16" y1="2" x2="16" y2="6" />
@@ -168,7 +254,10 @@ export default function DashboardPage() {
                         <button
                             type="button"
                             className={`faceonn-dash-nav-item ${activeTab === 'recordings' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('recordings')}>
+                            onClick={() => {
+                                setActiveTab('recordings');
+                                setMeetingsViewMode('list');
+                            }}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <circle cx="12" cy="12" r="10" />
                                 <polygon points="10 8 16 12 10 16 10 8" fill="currentColor" />
@@ -179,7 +268,10 @@ export default function DashboardPage() {
                         <button
                             type="button"
                             className={`faceonn-dash-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('settings')}>
+                            onClick={() => {
+                                setActiveTab('settings');
+                                setMeetingsViewMode('list');
+                            }}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <circle cx="12" cy="12" r="3" />
                                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -190,7 +282,10 @@ export default function DashboardPage() {
                         <button
                             type="button"
                             className={`faceonn-dash-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('profile')}>
+                            onClick={() => {
+                                setActiveTab('profile');
+                                setMeetingsViewMode('list');
+                            }}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                                 <circle cx="12" cy="7" r="4" />
@@ -248,76 +343,80 @@ export default function DashboardPage() {
                 </div>
             </aside>
 
-            {/* Main Content Area */}
+            {/* Main Area */}
             <main className="faceonn-dash-main">
-                {/* Top Header */}
+                {/* Top Header Bar */}
                 <header className="faceonn-dash-topbar">
-                    <div className="faceonn-dash-topbar-right">
-                        {/* Notification Bell */}
+                    <div className="dash-topbar-left">
+                        <div className="dash-search-box">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                            <input
+                                type="text"
+                                placeholder="Search meetings, recordings, participants..."
+                                aria-label="Search" />
+                        </div>
+                    </div>
+
+                    <div className="dash-topbar-right">
                         <button
                             type="button"
-                            className="faceonn-dash-bell-btn"
-                            aria-label="Notifications"
-                            onClick={() => alert('No new notifications')}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                            className="dash-btn-schedule-quick"
+                            onClick={handleOpenSchedule}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                <line x1="16" y1="2" x2="16" y2="6" />
+                                <line x1="8" y1="2" x2="8" y2="6" />
+                                <line x1="3" y1="10" x2="21" y2="10" />
                             </svg>
-                            <span className="bell-badge-dot" />
+                            <span>Schedule</span>
                         </button>
 
-                        {/* User Profile Pill */}
-                        <div className="faceonn-dash-user-dropdown-wrapper">
+                        <div className="dash-user-profile-wrap">
                             <button
                                 type="button"
-                                className="faceonn-dash-user-pill"
+                                className="dash-user-avatar-btn"
                                 onClick={() => setShowUserDropdown(!showUserDropdown)}>
-                                <div className="faceonn-dash-user-avatar">
-                                    {userInitials}
-                                </div>
-                                <span className="faceonn-dash-user-name">{displayName}</span>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="chevron-icon">
+                                <span className="dash-avatar-circle">{userInitials}</span>
+                                <span className="dash-user-name">{displayName}</span>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                     <polyline points="6 9 12 15 18 9" />
                                 </svg>
                             </button>
 
-                            {/* Dropdown Menu */}
                             {showUserDropdown && (
-                                <div className="faceonn-dash-menu-dropdown" onClick={() => setShowUserDropdown(false)}>
-                                    <div className="faceonn-dash-menu-header">
-                                        <div className="menu-header-name">{displayName}</div>
-                                        <div className="menu-header-email">{user?.email}</div>
+                                <div className="dash-user-menu-dropdown">
+                                    <div className="user-dropdown-header">
+                                        <div className="dropdown-name">{user?.name || 'Faceonn User'}</div>
+                                        <div className="dropdown-email">{user?.email}</div>
                                     </div>
+                                    <div className="user-dropdown-divider" />
                                     <button
                                         type="button"
-                                        className="faceonn-dash-menu-item"
-                                        onClick={() => setActiveTab('profile')}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                            <circle cx="12" cy="7" r="4" />
-                                        </svg>
-                                        My Profile
+                                        className="user-dropdown-item"
+                                        onClick={() => {
+                                            setActiveTab('profile');
+                                            setShowUserDropdown(false);
+                                        }}>
+                                        Profile Settings
                                     </button>
                                     <button
                                         type="button"
-                                        className="faceonn-dash-menu-item"
-                                        onClick={() => setActiveTab('settings')}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <circle cx="12" cy="12" r="3" />
-                                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                                        </svg>
-                                        Settings
+                                        className="user-dropdown-item"
+                                        onClick={() => {
+                                            setActiveTab('settings');
+                                            setShowUserDropdown(false);
+                                        }}>
+                                        Preferences
                                     </button>
+                                    <div className="user-dropdown-divider" />
                                     <button
                                         type="button"
-                                        className="faceonn-dash-menu-item logout"
+                                        className="user-dropdown-item danger"
                                         onClick={handleLogout}>
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                                            <polyline points="16 17 21 12 16 7" />
-                                            <line x1="21" y1="12" x2="9" y2="12" />
-                                        </svg>
-                                        Sign out
+                                        Sign Out
                                     </button>
                                 </div>
                             )}
@@ -325,17 +424,23 @@ export default function DashboardPage() {
                     </div>
                 </header>
 
-                {/* Tab: Home (Default Dashboard) */}
+                {urlBannerError && (
+                    <div className="schedule-error-banner" style={{ margin: '20px 32px 0 32px' }}>
+                        <span>⚠️ {urlBannerError}</span>
+                    </div>
+                )}
+
+                {/* Tab: Home */}
                 {activeTab === 'home' && (
                     <div className="faceonn-dash-body">
-                        {/* Greeting Banner */}
+                        {/* Welcome Hero */}
                         <div className="faceonn-dash-welcome">
-                            <h1>Good day, {displayName}!</h1>
-                            <p>Ready to connect? Start or join a meeting in just one click. 👋</p>
+                            <h1>Welcome back, {displayName} 👋</h1>
+                            <p>Host meetings, connect with your team, and collaborate seamlessly.</p>
                         </div>
 
                         {createError && (
-                            <div className="faceonn-dash-alert error">
+                            <div className="dash-error-toast" style={{ marginBottom: '20px' }}>
                                 <span>{createError}</span>
                             </div>
                         )}
@@ -409,7 +514,7 @@ export default function DashboardPage() {
                             <div className="faceonn-dash-card-white upcoming-meetings-card">
                                 <div className="dash-card-header">
                                     <div className="dash-card-title">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2">
                                             <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                                             <line x1="16" y1="2" x2="16" y2="6" />
                                             <line x1="8" y1="2" x2="8" y2="6" />
@@ -420,13 +525,18 @@ export default function DashboardPage() {
                                     <button
                                         type="button"
                                         className="dash-link-action"
-                                        onClick={() => setActiveTab('meetings')}>
+                                        onClick={() => {
+                                            setActiveTab('meetings');
+                                            setMeetingsViewMode('list');
+                                        }}>
                                         View All →
                                     </button>
                                 </div>
 
                                 <div className="dash-upcoming-body">
-                                    {meetings.length === 0 ? (
+                                    {loadingUpcoming ? (
+                                        <p style={{ color: '#64748b' }}>Loading scheduled meetings...</p>
+                                    ) : upcomingMeetings.length === 0 ? (
                                         <div className="dash-empty-state">
                                             <div className="empty-state-visual">
                                                 <img
@@ -439,7 +549,7 @@ export default function DashboardPage() {
                                             <button
                                                 type="button"
                                                 className="faceonn-dash-btn-outline"
-                                                onClick={() => setShowScheduleModal(true)}>
+                                                onClick={handleOpenSchedule}>
                                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                                                     <line x1="16" y1="2" x2="16" y2="6" />
@@ -451,25 +561,34 @@ export default function DashboardPage() {
                                         </div>
                                     ) : (
                                         <div className="dash-meeting-items-list">
-                                            {meetings.slice(0, 3).map((m) => (
-                                                <div key={m.id} className="dash-meeting-item-row">
-                                                    <div className="meeting-row-icon">
-                                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                                            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-                                                        </svg>
+                                            {upcomingMeetings.slice(0, 3).map((m) => {
+                                                const rel = getRelativeMeetingTime(m.scheduledAt, m.timezone);
+                                                return (
+                                                    <div key={m.id} className="dash-meeting-item-row">
+                                                        <div className="meeting-row-icon">
+                                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                                                            </svg>
+                                                        </div>
+                                                        <div className="meeting-row-info">
+                                                            <div className="meeting-row-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <span>{m.title}</span>
+                                                                <span className={`time-pill ${rel.badgeClass}`}>{rel.label}</span>
+                                                            </div>
+                                                            <div className="meeting-row-room">
+                                                                Room: {m.roomId} • {m.durationMinutes} mins
+                                                                {m.hasPasscode && ' • 🔒 Passcode'}
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            className="meeting-row-btn"
+                                                            onClick={() => handleStartOrJoinMeeting(m)}>
+                                                            Start →
+                                                        </button>
                                                     </div>
-                                                    <div className="meeting-row-info">
-                                                        <div className="meeting-row-title">{m.title}</div>
-                                                        <div className="meeting-row-room">Room: {m.roomId}</div>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        className="meeting-row-btn"
-                                                        onClick={() => window.location.href = `/${m.roomId}`}>
-                                                        Start →
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -487,7 +606,6 @@ export default function DashboardPage() {
                                 </div>
 
                                 <div className="dash-activity-timeline">
-                                    {/* Activity Item 1 */}
                                     <div className="dash-timeline-item">
                                         <div className="timeline-node blue">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -496,31 +614,13 @@ export default function DashboardPage() {
                                         </div>
                                         <div className="timeline-content">
                                             <div className="timeline-main">
-                                                <div className="timeline-title">Meeting ended</div>
-                                                <div className="timeline-sub">with 4 participants • 45 min</div>
+                                                <div className="timeline-title">Conferencing Ready</div>
+                                                <div className="timeline-sub">HD audio & video encryption active</div>
                                             </div>
-                                            <div className="timeline-time">2h ago</div>
+                                            <div className="timeline-time">Live</div>
                                         </div>
                                     </div>
 
-                                    {/* Activity Item 2 */}
-                                    <div className="dash-timeline-item">
-                                        <div className="timeline-node purple">
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                                            </svg>
-                                        </div>
-                                        <div className="timeline-content">
-                                            <div className="timeline-main">
-                                                <div className="timeline-title">You joined a meeting</div>
-                                                <div className="timeline-sub">via link</div>
-                                            </div>
-                                            <div className="timeline-time">1d ago</div>
-                                        </div>
-                                    </div>
-
-                                    {/* Activity Item 3 */}
                                     <div className="dash-timeline-item">
                                         <div className="timeline-node green">
                                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -532,10 +632,10 @@ export default function DashboardPage() {
                                         </div>
                                         <div className="timeline-content">
                                             <div className="timeline-main">
-                                                <div className="timeline-title">New meeting scheduled</div>
-                                                <div className="timeline-sub">Team Sync</div>
+                                                <div className="timeline-title">Scheduler Enabled</div>
+                                                <div className="timeline-sub">Google, Outlook & .ics calendar sync active</div>
                                             </div>
-                                            <div className="timeline-time">2d ago</div>
+                                            <div className="timeline-time">Today</div>
                                         </div>
                                     </div>
                                 </div>
@@ -547,56 +647,298 @@ export default function DashboardPage() {
                 {/* Tab: Meetings */}
                 {activeTab === 'meetings' && (
                     <div className="faceonn-dash-body">
-                        <div className="faceonn-dash-welcome">
-                            <h1>My Meetings</h1>
-                            <p>Manage and access all your hosted and scheduled meetings.</p>
-                        </div>
+                        {meetingsViewMode === 'schedule' && (
+                            <ScheduleMeetingView
+                                onBack={() => setMeetingsViewMode('list')}
+                                onScheduled={(res) => {
+                                    setScheduleResult(res);
+                                    setMeetingsViewMode('confirmation');
+                                    fetchUpcomingMeetings();
+                                }} />
+                        )}
 
-                        <div className="faceonn-dash-card-white" style={{ padding: '24px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>Conferences & Rooms</h3>
-                                <button
-                                    type="button"
-                                    className="faceonn-dash-btn-action blue"
-                                    style={{ padding: '8px 18px', fontSize: '13px' }}
-                                    onClick={handleCreateMeeting}
-                                    disabled={isCreating}>
-                                    + New Meeting
-                                </button>
-                            </div>
+                        {meetingsViewMode === 'confirmation' && scheduleResult && (
+                            <ScheduleConfirmationView
+                                result={scheduleResult}
+                                onViewDetails={(id) => {
+                                    setSelectedMeetingId(id);
+                                    setMeetingsViewMode('details');
+                                }}
+                                onBackToMeetings={() => setMeetingsViewMode('list')} />
+                        )}
 
-                            {loadingMeetings ? (
-                                <p style={{ color: '#64748b' }}>Loading your meetings...</p>
-                            ) : meetings.length === 0 ? (
-                                <div className="dash-empty-state" style={{ padding: '40px 0' }}>
-                                    <img src="images/feature-calendar.png" alt="Calendar" className="empty-state-calendar-img" />
-                                    <h4>No meetings found</h4>
-                                    <p>Start a new instant meeting or schedule one for later.</p>
+                        {meetingsViewMode === 'details' && selectedMeetingId && (
+                            <MeetingDetailsView
+                                meetingId={selectedMeetingId}
+                                onBack={() => setMeetingsViewMode('list')}
+                                onEdit={(id) => {
+                                    setSelectedMeetingId(id);
+                                    setMeetingsViewMode('edit');
+                                }}
+                                onCancelled={() => {
+                                    setMeetingsViewMode('list');
+                                    fetchUpcomingMeetings();
+                                    fetchPastMeetings();
+                                }} />
+                        )}
+
+                        {meetingsViewMode === 'edit' && selectedMeetingId && (
+                            <EditMeetingView
+                                meetingId={selectedMeetingId}
+                                onBack={() => setMeetingsViewMode('details')}
+                                onUpdated={() => {
+                                    setMeetingsViewMode('details');
+                                    fetchUpcomingMeetings();
+                                }} />
+                        )}
+
+                        {meetingsViewMode === 'list' && (
+                            <>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
+                                    <div className="faceonn-dash-welcome" style={{ margin: 0 }}>
+                                        <h1>Meetings</h1>
+                                        <p>Manage and access all your hosted and scheduled meetings.</p>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                        <button
+                                            type="button"
+                                            className="faceonn-dash-btn-action blue"
+                                            onClick={handleOpenSchedule}>
+                                            + Schedule a Meeting
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="faceonn-dash-btn-secondary"
+                                            onClick={handleCreateMeeting}
+                                            disabled={isCreating}>
+                                            + Instant Meeting
+                                        </button>
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="dash-meeting-items-list">
-                                    {meetings.map((m) => (
-                                        <div key={m.id} className="dash-meeting-item-row">
-                                            <div className="meeting-row-icon">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                                    <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-                                                </svg>
+
+                                {/* Sub Tabs Navigation */}
+                                <div className="faceonn-sub-tabs">
+                                    <button
+                                        type="button"
+                                        className={`sub-tab-btn ${meetingsSubTab === 'upcoming' ? 'active' : ''}`}
+                                        onClick={() => setMeetingsSubTab('upcoming')}>
+                                        Upcoming Meetings ({upcomingMeetings.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`sub-tab-btn ${meetingsSubTab === 'previous' ? 'active' : ''}`}
+                                        onClick={() => setMeetingsSubTab('previous')}>
+                                        Previous Meetings ({pastMeetings.length})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`sub-tab-btn ${meetingsSubTab === 'personal' ? 'active' : ''}`}
+                                        onClick={() => setMeetingsSubTab('personal')}>
+                                        Personal Meeting Room (PMI)
+                                    </button>
+                                </div>
+
+                                {/* Sub-Tab 1: Upcoming Meetings */}
+                                {meetingsSubTab === 'upcoming' && (
+                                    <div className="faceonn-dash-card-white" style={{ padding: '24px' }}>
+                                        {loadingUpcoming ? (
+                                            <p style={{ color: '#64748b' }}>Loading upcoming meetings...</p>
+                                        ) : upcomingMeetings.length === 0 ? (
+                                            <div className="dash-empty-state" style={{ padding: '40px 0' }}>
+                                                <img src="images/feature-calendar.png" alt="Calendar" className="empty-state-calendar-img" />
+                                                <h4>No upcoming meetings</h4>
+                                                <p>Schedule a new meeting to invite colleagues or plan ahead.</p>
+                                                <button
+                                                    type="button"
+                                                    className="faceonn-dash-btn-action blue"
+                                                    style={{ marginTop: '16px' }}
+                                                    onClick={handleOpenSchedule}>
+                                                    Schedule a Meeting Now
+                                                </button>
                                             </div>
-                                            <div className="meeting-row-info">
-                                                <div className="meeting-row-title">{m.title}</div>
-                                                <div className="meeting-row-room">Room: {m.roomId} • Status: {m.status}</div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                                {upcomingMeetings.map((m) => {
+                                                    const rel = getRelativeMeetingTime(m.scheduledAt, m.timezone);
+                                                    const dateObj = m.scheduledAt ? new Date(m.scheduledAt) : new Date(m.createdAt);
+                                                    const monthStr = dateObj.toLocaleString('en-US', { month: 'short' });
+                                                    const dayStr = dateObj.getDate();
+
+                                                    return (
+                                                        <div key={m.id} className="dash-rich-meeting-card">
+                                                            <div className="meeting-card-left">
+                                                                <div className="card-calendar-badge">
+                                                                    <span className="badge-month">{monthStr}</span>
+                                                                    <span className="badge-day">{dayStr}</span>
+                                                                </div>
+
+                                                                <div className="card-text-info">
+                                                                    <div className="card-title-row">
+                                                                        <h4 onClick={() => {
+                                                                            setSelectedMeetingId(m.id);
+                                                                            setMeetingsViewMode('details');
+                                                                        }}>
+                                                                            {m.title}
+                                                                        </h4>
+                                                                        <span className={`time-pill ${rel.badgeClass}`}>{rel.label}</span>
+                                                                        {m.hasPasscode && <span className="summary-badge">🔒 Passcode</span>}
+                                                                        {m.recurrenceRule && <span className="summary-badge">🔁 Recurring</span>}
+                                                                    </div>
+
+                                                                    <div className="card-meta-row">
+                                                                        <span className="meta-time">
+                                                                            {dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} • {m.durationMinutes} min
+                                                                        </span>
+                                                                        <span className="meta-id">ID: {m.roomId}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="meeting-card-right">
+                                                                <button
+                                                                    type="button"
+                                                                    className="schedule-btn-action blue"
+                                                                    onClick={() => handleStartOrJoinMeeting(m)}>
+                                                                    Start
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="schedule-btn-secondary"
+                                                                    onClick={() => handleCopyMeetingLink(m.roomId, m.id)}>
+                                                                    {copiedMeetingId === m.id ? '✓ Copied' : 'Copy Link'}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="schedule-btn-secondary"
+                                                                    onClick={() => {
+                                                                        setSelectedMeetingId(m.id);
+                                                                        setMeetingsViewMode('details');
+                                                                    }}>
+                                                                    Details
+                                                                </button>
+                                                                {m.ownerId === user?.id && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="schedule-btn-secondary"
+                                                                        onClick={() => {
+                                                                            setSelectedMeetingId(m.id);
+                                                                            setMeetingsViewMode('edit');
+                                                                        }}>
+                                                                        Edit
+                                                                    </button>
+                                                                )}
+                                                                {m.ownerId === user?.id && (
+                                                                    <button
+                                                                        type="button"
+                                                                        className="schedule-btn-danger"
+                                                                        onClick={() => setMeetingToCancel(m)}>
+                                                                        Cancel
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Sub-Tab 2: Previous Meetings */}
+                                {meetingsSubTab === 'previous' && (
+                                    <div className="faceonn-dash-card-white" style={{ padding: '24px' }}>
+                                        {loadingPast ? (
+                                            <p style={{ color: '#64748b' }}>Loading historical meetings...</p>
+                                        ) : pastMeetings.length === 0 ? (
+                                            <div className="dash-empty-state" style={{ padding: '40px 0' }}>
+                                                <h4>No previous meetings</h4>
+                                                <p>Completed and cancelled meetings will appear in your history.</p>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                                {pastMeetings.map((m) => (
+                                                    <div key={m.id} className="dash-rich-meeting-card">
+                                                        <div className="meeting-card-left">
+                                                            <div className="card-text-info">
+                                                                <div className="card-title-row">
+                                                                    <h4>{m.title}</h4>
+                                                                    <span className={`status-pill ${m.status}`}>{m.status.toUpperCase()}</span>
+                                                                </div>
+                                                                <div className="card-meta-row">
+                                                                    <span>
+                                                                        {m.scheduledAt
+                                                                            ? new Date(m.scheduledAt).toLocaleString()
+                                                                            : new Date(m.createdAt).toLocaleString()}
+                                                                    </span>
+                                                                    <span className="meta-id">ID: {m.roomId}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="meeting-card-right">
+                                                            <button
+                                                                type="button"
+                                                                className="schedule-btn-secondary"
+                                                                onClick={() => {
+                                                                    setSelectedMeetingId(m.id);
+                                                                    setMeetingsViewMode('details');
+                                                                }}>
+                                                                View Details
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Sub-Tab 3: Personal Meeting Room */}
+                                {meetingsSubTab === 'personal' && (
+                                    <div className="faceonn-dash-card-white" style={{ padding: '32px' }}>
+                                        <h3 style={{ margin: '0 0 10px 0' }}>Personal Meeting Room (PMI)</h3>
+                                        <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 24px 0' }}>
+                                            Your personal meeting room is your permanent virtual office space that is always
+                                            reserved with your unique ID.
+                                        </p>
+
+                                        <div className="confirm-details-box" style={{ maxWidth: '540px' }}>
+                                            <div className="confirm-detail-row">
+                                                <span className="detail-key">PMI ID:</span>
+                                                <span className="detail-val mono">{pmi}</span>
+                                            </div>
+                                            <div className="confirm-detail-row">
+                                                <span className="detail-key">Personal Link:</span>
+                                                <span className="detail-val mono">{window.location.origin}/{pmi}</span>
+                                            </div>
+                                            <div className="confirm-detail-row">
+                                                <span className="detail-key">Host:</span>
+                                                <span className="detail-val bold">{displayName}</span>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
                                             <button
                                                 type="button"
-                                                className="meeting-row-btn"
-                                                onClick={() => window.location.href = `/${m.roomId}`}>
-                                                Join Room →
+                                                className="faceonn-dash-btn-action blue"
+                                                onClick={() => window.location.href = `/${pmi}`}>
+                                                Start Personal Room →
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="schedule-btn-secondary"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(`${window.location.origin}/${pmi}`);
+                                                    alert('Personal meeting link copied to clipboard!');
+                                                }}>
+                                                Copy Personal Link
                                             </button>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
                 )}
 
@@ -628,19 +970,23 @@ export default function DashboardPage() {
                         </div>
                         <div className="faceonn-dash-card-white" style={{ padding: '32px' }}>
                             <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: 700 }}>Conferencing Preferences</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '500px' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
-                                    <input type="checkbox" defaultChecked />
-                                    Always start meetings with microphone muted
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
-                                    <input type="checkbox" defaultChecked />
-                                    Always start meetings with camera enabled
-                                </label>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', color: '#0f172a' }}>
-                                    <input type="checkbox" defaultChecked />
-                                    Enable high definition (HD) video stream by default
-                                </label>
+                            <div className="settings-pills-wrap">
+                                <div className="settings-pill-box">
+                                    <span className="pill-title">Audio Device</span>
+                                    <span className="pill-value">Default Microphone</span>
+                                </div>
+                                <div className="settings-pill-box">
+                                    <span className="pill-title">Video Quality</span>
+                                    <span className="pill-value">HD (1080p)</span>
+                                </div>
+                                <div className="settings-pill-box">
+                                    <span className="pill-title">Noise Suppression</span>
+                                    <span className="pill-value">AI Active</span>
+                                </div>
+                                <div className="settings-pill-box">
+                                    <span className="pill-title">Default Timezone</span>
+                                    <span className="pill-value">{Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -651,49 +997,33 @@ export default function DashboardPage() {
                     <div className="faceonn-dash-body">
                         <div className="faceonn-dash-welcome">
                             <h1>Account Profile</h1>
-                            <p>Review your personal details and authenticated session status.</p>
+                            <p>Manage your personal profile information and authentication security.</p>
                         </div>
                         <div className="faceonn-dash-card-white" style={{ padding: '32px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '28px' }}>
-                                <div style={{
-                                    width: '64px',
-                                    height: '64px',
-                                    borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                    color: '#ffffff',
-                                    fontSize: '24px',
-                                    fontWeight: 700,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    {userInitials}
-                                </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '24px' }}>
+                                <div className="profile-large-avatar">{userInitials}</div>
                                 <div>
-                                    <h3 style={{ margin: '0 0 4px 0', fontSize: '20px', fontWeight: 700, color: '#0f172a' }}>{displayName}</h3>
+                                    <h2 style={{ margin: '0 0 4px 0', fontSize: '22px', fontWeight: 800 }}>{user?.name || 'Faceonn User'}</h2>
                                     <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>{user?.email}</p>
                                 </div>
                             </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', borderTop: '1px solid #f1f5f9', paddingTop: '20px' }}>
-                                <div>
-                                    <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Account Status</div>
-                                    <div style={{ fontSize: '15px', fontWeight: 600, color: '#16a34a', marginTop: '4px' }}>Active (Verified)</div>
+                            <div className="profile-details-grid">
+                                <div className="profile-detail-card">
+                                    <span className="profile-detail-label">Account Status</span>
+                                    <span className="profile-detail-val" style={{ color: '#10b981', fontWeight: 700 }}>Active</span>
                                 </div>
-                                <div>
-                                    <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Membership Tier</div>
-                                    <div style={{ fontSize: '15px', fontWeight: 600, color: '#6366f1', marginTop: '4px' }}>Faceonn Free Tier</div>
+                                <div className="profile-detail-card">
+                                    <span className="profile-detail-label">Personal Meeting ID (PMI)</span>
+                                    <span className="profile-detail-val mono">{pmi}</span>
                                 </div>
-                                <div>
-                                    <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', fontWeight: 600 }}>Account ID</div>
-                                    <div style={{ fontSize: '13px', fontFamily: 'monospace', color: '#0f172a', marginTop: '4px' }}>{user?.id?.slice(0, 16)}...</div>
+                                <div className="profile-detail-card">
+                                    <span className="profile-detail-label">Plan Tier</span>
+                                    <span className="profile-detail-val" style={{ color: '#0284c7', fontWeight: 700 }}>Free Account</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
-
-                {/* Modals */}
 
                 {/* Join Meeting Modal */}
                 {showJoinModal && (
@@ -717,17 +1047,17 @@ export default function DashboardPage() {
                                 </button>
                             </div>
                             <p className="dash-modal-desc">
-                                Enter the meeting room code or paste the full meeting link.
+                                Enter the meeting room name, ID, or full invitation link to join.
                             </p>
 
-                            <form onSubmit={handleJoinSubmit}>
+                            <form onSubmit={handleJoinSubmit} className="faceonn-dash-modal-form">
                                 <div className="faceonn-dash-input-group">
-                                    <label>Meeting link or room ID</label>
+                                    <label>Meeting Link or Room ID</label>
                                     <input
                                         type="text"
-                                        placeholder="e.g. daily-standup or https://faceonn.com/team-sync"
+                                        placeholder="e.g. daily-standup or faceonn.com/daily-standup"
                                         value={joinInput}
-                                        onChange={(e) => setJoinInput(e.target.value)}
+                                        onChange={e => setJoinInput(e.target.value)}
                                         autoFocus
                                         required />
                                 </div>
@@ -742,8 +1072,8 @@ export default function DashboardPage() {
                                     <button
                                         type="submit"
                                         className="faceonn-dash-btn-action purple"
-                                        style={{ padding: '10px 24px' }}>
-                                        Join Meeting →
+                                        disabled={!joinInput.trim()}>
+                                        Join Room →
                                     </button>
                                 </div>
                             </form>
@@ -751,92 +1081,74 @@ export default function DashboardPage() {
                     </div>
                 )}
 
-                {/* Schedule Meeting Modal */}
-                {showScheduleModal && (
-                    <div className="faceonn-dash-modal-overlay" onClick={() => setShowScheduleModal(false)}>
+                {/* Cancellation Confirmation Modal */}
+                {meetingToCancel && (
+                    <div className="faceonn-dash-modal-overlay" onClick={() => setMeetingToCancel(null)}>
                         <div className="faceonn-dash-modal-card" onClick={e => e.stopPropagation()}>
                             <div className="faceonn-dash-modal-header">
-                                <div className="modal-title-with-badge">
-                                    <div className="modal-badge-icon blue">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                            <line x1="16" y1="2" x2="16" y2="6" />
-                                            <line x1="8" y1="2" x2="8" y2="6" />
-                                            <line x1="3" y1="10" x2="21" y2="10" />
-                                        </svg>
-                                    </div>
-                                    <h3>Schedule a Meeting</h3>
-                                </div>
+                                <h3>Cancel Meeting</h3>
                                 <button
                                     type="button"
                                     className="dash-modal-close"
-                                    onClick={() => setShowScheduleModal(false)}>
+                                    onClick={() => setMeetingToCancel(null)}>
                                     ✕
                                 </button>
                             </div>
+
                             <p className="dash-modal-desc">
-                                Set up your meeting details and share the invite link with attendees.
+                                Are you sure you want to cancel <strong>{meetingToCancel.title}</strong>? Participants will no longer be able to join using this meeting invitation.
                             </p>
 
-                            <div className="faceonn-dash-modal-form">
-                                <div className="faceonn-dash-input-group">
-                                    <label>Meeting Topic</label>
-                                    <input
-                                        type="text"
-                                        value={scheduleTopic}
-                                        onChange={(e) => setScheduleTopic(e.target.value)} />
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                                    <div className="faceonn-dash-input-group">
-                                        <label>Date</label>
+                            {meetingToCancel.recurrenceSeriesId && (
+                                <div style={{ margin: '16px 0' }}>
+                                    <label className="schedule-radio-label">
                                         <input
-                                            type="date"
-                                            value={scheduleDate}
-                                            onChange={(e) => setScheduleDate(e.target.value)} />
-                                    </div>
-                                    <div className="faceonn-dash-input-group">
-                                        <label>Time</label>
+                                            type="radio"
+                                            name="listCancelScope"
+                                            checked={cancelScope === 'occurrence'}
+                                            onChange={() => setCancelScope('occurrence')} />
+                                        <span>Cancel only this occurrence</span>
+                                    </label>
+                                    <label className="schedule-radio-label" style={{ marginTop: '8px' }}>
                                         <input
-                                            type="time"
-                                            value={scheduleTime}
-                                            onChange={(e) => setScheduleTime(e.target.value)} />
-                                    </div>
+                                            type="radio"
+                                            name="listCancelScope"
+                                            checked={cancelScope === 'series'}
+                                            onChange={() => setCancelScope('series')} />
+                                        <span>Cancel all occurrences in this recurring series</span>
+                                    </label>
                                 </div>
+                            )}
 
-                                <div className="faceonn-dash-input-group">
-                                    <label>Shareable Meeting Link</label>
-                                    <div className="dash-copy-link-box">
-                                        <input
-                                            type="text"
-                                            readOnly
-                                            value={`${window.location.origin}/${generatedScheduleRoom}`} />
-                                        <button
-                                            type="button"
-                                            className="dash-btn-copy"
-                                            onClick={handleCopyScheduleLink}>
-                                            {copied ? '✓ Copied' : 'Copy'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="dash-modal-actions">
-                                    <button
-                                        type="button"
-                                        className="faceonn-dash-btn-cancel"
-                                        onClick={() => setShowScheduleModal(false)}>
-                                        Done
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="faceonn-dash-btn-action blue"
-                                        onClick={handleStartScheduledMeeting}>
-                                        Start Now →
-                                    </button>
-                                </div>
+                            <div className="dash-modal-actions">
+                                <button
+                                    type="button"
+                                    className="faceonn-dash-btn-cancel"
+                                    onClick={() => setMeetingToCancel(null)}
+                                    disabled={cancelling}>
+                                    Keep Meeting
+                                </button>
+                                <button
+                                    type="button"
+                                    className="schedule-btn-danger"
+                                    onClick={handleConfirmCancelFromList}
+                                    disabled={cancelling}>
+                                    {cancelling ? 'Cancelling...' : 'Yes, Cancel Meeting'}
+                                </button>
                             </div>
                         </div>
                     </div>
+                )}
+
+                {/* Passcode Prompt Modal */}
+                {passcodeModalRoom && (
+                    <PasscodePromptModal
+                        roomId={passcodeModalRoom}
+                        error={passcodeModalError}
+                        onClose={() => setPasscodeModalRoom(null)}
+                        onSubmit={(enteredPasscode) => {
+                            window.location.href = `/${passcodeModalRoom}?passcode=${encodeURIComponent(enteredPasscode)}`;
+                        }} />
                 )}
 
                 {/* Upgrade to Pro Modal */}

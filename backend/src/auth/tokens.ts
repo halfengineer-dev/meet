@@ -52,8 +52,25 @@ export function generateJitsiMeetingToken(params: {
   user: { id: string; name: string | null; email: string; avatar_url?: string | null };
   room: string;
   isModerator: boolean;
+  meetingSettings?: {
+    waitingRoomEnabled?: boolean;
+    allowScreenSharing?: boolean;
+    allowChat?: boolean;
+    muteOnEntry?: boolean;
+  };
 }): string {
   const nowInSeconds = Math.floor(Date.now() / 1000);
+
+  const features: Record<string, boolean> = {
+    recording: true,
+    livestreaming: true,
+    transcription: true,
+    'screen-sharing': params.meetingSettings?.allowScreenSharing !== false,
+  };
+
+  if (params.meetingSettings?.waitingRoomEnabled) {
+    features.lobby = true;
+  }
 
   const payload = {
     iss: JITSI_APP_ID,
@@ -68,11 +85,7 @@ export function generateJitsiMeetingToken(params: {
         avatar: params.user.avatar_url || undefined,
         moderator: Boolean(params.isModerator),
       },
-      features: {
-        recording: true,
-        livestreaming: true,
-        transcription: true,
-      },
+      features,
     },
     nbf: nowInSeconds - 10,
     exp: nowInSeconds + 7200, // 2 hours

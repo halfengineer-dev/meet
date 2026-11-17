@@ -8,12 +8,16 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url TEXT,
     email_verified BOOLEAN DEFAULT FALSE,
     status VARCHAR(50) DEFAULT 'active',
+    pmi VARCHAR(30) UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     last_login_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+-- Ensure PMI column exists on existing user tables
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pmi VARCHAR(30) UNIQUE;
 
 CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY,
@@ -32,18 +36,59 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(refresh_token_hash);
 CREATE INDEX IF NOT EXISTS idx_sessions_family_id ON sessions(family_id);
 
+CREATE TABLE IF NOT EXISTS meeting_recurrence_series (
+    id UUID PRIMARY KEY,
+    owner_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    recurrence_rule TEXT NOT NULL,
+    timezone VARCHAR(50) NOT NULL DEFAULT 'UTC',
+    start_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    end_at TIMESTAMP WITH TIME ZONE,
+    occurrence_count INT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_recurrence_series_owner ON meeting_recurrence_series(owner_user_id);
+
 CREATE TABLE IF NOT EXISTS meetings (
     id UUID PRIMARY KEY,
     room_id VARCHAR(100) UNIQUE NOT NULL,
     title VARCHAR(255) NOT NULL,
     owner_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     status VARCHAR(50) DEFAULT 'active',
+    scheduled_at TIMESTAMP WITH TIME ZONE,
+    duration_minutes INT DEFAULT 30,
+    timezone VARCHAR(50) DEFAULT 'UTC',
+    description TEXT,
+    is_scheduled BOOLEAN DEFAULT FALSE,
+    meeting_type VARCHAR(20) DEFAULT 'instant',
+    recurrence_series_id UUID REFERENCES meeting_recurrence_series(id) ON DELETE SET NULL,
+    recurrence_rule TEXT,
+    recurrence_end_at TIMESTAMP WITH TIME ZONE,
+    settings JSONB DEFAULT '{}'::jsonb,
+    passcode_hash VARCHAR(128),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_meetings_room_id ON meetings(room_id);
 CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_scheduled_at ON meetings(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);
+CREATE INDEX IF NOT EXISTS idx_meetings_series_id ON meetings(recurrence_series_id);
+
+-- Idempotent migrations for existing deployments
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS duration_minutes INT DEFAULT 30;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'UTC';
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS is_scheduled BOOLEAN DEFAULT FALSE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS meeting_type VARCHAR(20) DEFAULT 'instant';
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_series_id UUID REFERENCES meeting_recurrence_series(id) ON DELETE SET NULL;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_rule TEXT;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_end_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS passcode_hash VARCHAR(128);
 
 CREATE TABLE IF NOT EXISTS meeting_participants (
     id UUID PRIMARY KEY,
@@ -56,3 +101,19 @@ CREATE TABLE IF NOT EXISTS meeting_participants (
 
 CREATE INDEX IF NOT EXISTS idx_participants_meeting_user ON meeting_participants(meeting_id, user_id);
 
+CREATE TABLE IF NOT EXISTS meeting_invitations (
+    id UUID PRIMARY KEY,
+    meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    invited_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    invitation_token_hash VARCHAR(64),
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    invited_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (meeting_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invitations_meeting_id ON meeting_invitations(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_invitations_email ON meeting_invitations(email);

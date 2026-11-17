@@ -112,13 +112,16 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
             const accessToken = getAccessToken(state);
             if (accessToken) {
                 try {
-                    const data = await authApiClient.getMeetingToken(room, accessToken);
+                    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+                    const passcode = urlParams?.get('passcode') || undefined;
+                    const data = await authApiClient.getMeetingToken(room, accessToken, passcode);
                     dispatch(setJWT(data.token));
-                } catch (err) {
+                } catch (err: any) {
                     logger.error('Failed to get meeting token from backend', err);
+                    const errorMsg = err.message || 'Failed to authorize meeting';
                     return {
                         component: undefined,
-                        href: '/dashboard'
+                        href: `/dashboard?error=${encodeURIComponent(errorMsg)}`
                     };
                 }
             }

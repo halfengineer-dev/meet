@@ -1,5 +1,13 @@
 import { API_BASE_URL } from './constants';
-import { IUser, IMeeting, IMeetingSession } from './types';
+import {
+    IUser,
+    IMeeting,
+    IScheduleMeetingDTO,
+    IUpdateMeetingDTO,
+    IScheduleMeetingResponse,
+    IMeetingDetailsResponse,
+    IMeetingInvitation
+} from './types';
 
 interface AuthResponse {
     user: IUser;
@@ -24,7 +32,10 @@ export class AuthApiClient {
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-            throw new Error(data.error || `Request failed with status ${res.status}`);
+            const error: any = new Error(data.error || `Request failed with status ${res.status}`);
+            error.status = res.status;
+            error.code = data.code;
+            throw error;
         }
 
         return data as T;
@@ -74,8 +85,26 @@ export class AuthApiClient {
         });
     }
 
+    public async getUpcomingMeetings(accessToken: string): Promise<{ meetings: IMeeting[] }> {
+        return this.request<{ meetings: IMeeting[] }>('/api/meetings/upcoming', {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async getPastMeetings(accessToken: string): Promise<{ meetings: IMeeting[] }> {
+        return this.request<{ meetings: IMeeting[] }>('/api/meetings/past', {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
     public async createMeeting(title?: string, accessToken?: string): Promise<{
-        meeting: { id: string; roomId: string; title: string; ownerId: string; status: string; createdAt: string };
+        meeting: IMeeting;
         token: string;
         role: 'owner' | 'moderator' | 'participant';
     }> {
@@ -86,12 +115,115 @@ export class AuthApiClient {
         });
     }
 
-    public async getMeetingToken(roomId: string, accessToken: string): Promise<{
-        meeting: { id: string; roomId: string; title: string; ownerId: string; status: string; createdAt: string };
+    public async scheduleMeeting(
+        payload: IScheduleMeetingDTO,
+        accessToken: string
+    ): Promise<IScheduleMeetingResponse> {
+        return this.request<IScheduleMeetingResponse>('/api/meetings/schedule', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    public async getMeetingDetails(
+        meetingId: string,
+        accessToken: string
+    ): Promise<IMeetingDetailsResponse> {
+        return this.request<IMeetingDetailsResponse>(`/api/meetings/${encodeURIComponent(meetingId)}`, {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async updateMeeting(
+        meetingId: string,
+        payload: IUpdateMeetingDTO,
+        accessToken: string
+    ): Promise<{ meeting: IMeeting }> {
+        return this.request<{ meeting: IMeeting }>(`/api/meetings/${encodeURIComponent(meetingId)}`, {
+            method: 'PATCH',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    public async cancelMeeting(
+        meetingId: string,
+        accessToken: string,
+        scope: 'occurrence' | 'series' = 'occurrence'
+    ): Promise<{ success: boolean }> {
+        return this.request<{ success: boolean }>(`/api/meetings/${encodeURIComponent(meetingId)}/cancel`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ scope })
+        });
+    }
+
+    public async startMeeting(
+        meetingId: string,
+        accessToken: string
+    ): Promise<{ meeting: IMeeting; token: string }> {
+        return this.request<{ meeting: IMeeting; token: string }>(`/api/meetings/${encodeURIComponent(meetingId)}/start`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async addInvitations(
+        meetingId: string,
+        emails: string[],
+        accessToken: string
+    ): Promise<{ invitees: IMeetingInvitation[] }> {
+        return this.request<{ invitees: IMeetingInvitation[] }>(`/api/meetings/${encodeURIComponent(meetingId)}/invitations`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ emails })
+        });
+    }
+
+    public async removeInvitation(
+        meetingId: string,
+        invitationId: string,
+        accessToken: string
+    ): Promise<{ success: boolean }> {
+        return this.request<{ success: boolean }>(
+            `/api/meetings/${encodeURIComponent(meetingId)}/invitations/${encodeURIComponent(invitationId)}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            }
+        );
+    }
+
+    public async getMeetingToken(
+        roomId: string,
+        accessToken: string,
+        passcode?: string
+    ): Promise<{
+        meeting: IMeeting;
         token: string;
         role: 'owner' | 'moderator' | 'participant';
     }> {
-        return this.request(`/api/meetings/${encodeURIComponent(roomId)}/token`, {
+        let url = `/api/meetings/${encodeURIComponent(roomId)}/token`;
+        if (passcode) {
+            url += `?passcode=${encodeURIComponent(passcode)}`;
+        }
+        return this.request(url, {
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${accessToken}`
@@ -101,4 +233,3 @@ export class AuthApiClient {
 }
 
 export const authApiClient = new AuthApiClient();
-

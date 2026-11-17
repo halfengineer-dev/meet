@@ -287,19 +287,17 @@ body:has(.test-home-container) {
 
 .test-hero-section {
   position: relative;
-  background: linear-gradient(
-    180deg,
-    #130e38 0%,
-    #181245 20%,
-    #221656 38%,
-    #3b267e 52%,
-    #6954b5 65%,
-    #9c8ce0 75%,
-    #c8bdf5 84%,
-    #ded7fa 91%,
-    #efeafd 96%,
-    #f8f7ff 100%
-  );
+  background: linear-gradient(180deg,
+      #130e38 0%,
+      #181245 20%,
+      #221656 38%,
+      #3b267e 52%,
+      #6954b5 65%,
+      #9c8ce0 75%,
+      #c8bdf5 84%,
+      #ded7fa 91%,
+      #efeafd 96%,
+      #f8f7ff 100%);
   padding: 60px 24px 90px;
   color: #0f172a;
   overflow: hidden;
@@ -1299,8 +1297,13 @@ body:has(.test-home-container) {
 }
 
 @keyframes testFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .test-modal-card {
@@ -1317,8 +1320,15 @@ body:has(.test-home-container) {
 }
 
 @keyframes testSlideUp {
-  from { transform: translateY(16px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
+  from {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .test-modal-close {
@@ -1493,6 +1503,7 @@ body:has(.test-home-container) {
    ========================================================================== */
 
 @media (max-width: 1024px) {
+
   .test-hero-grid,
   .test-why-grid,
   .test-simple-grid {
@@ -1581,4 +1592,3 @@ body:has(.test-home-container) {
     text-align: center;
   }
 }
-
