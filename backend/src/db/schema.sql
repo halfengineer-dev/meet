@@ -71,13 +71,7 @@ CREATE TABLE IF NOT EXISTS meetings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_meetings_room_id ON meetings(room_id);
-CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_user_id);
-CREATE INDEX IF NOT EXISTS idx_meetings_scheduled_at ON meetings(scheduled_at);
-CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);
-CREATE INDEX IF NOT EXISTS idx_meetings_series_id ON meetings(recurrence_series_id);
-
--- Idempotent migrations for existing deployments
+-- Idempotent migrations for existing deployments (must run before indexes on new columns)
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS duration_minutes INT DEFAULT 30;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'UTC';
@@ -89,6 +83,12 @@ ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_rule TEXT;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_end_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS passcode_hash VARCHAR(128);
+
+CREATE INDEX IF NOT EXISTS idx_meetings_room_id ON meetings(room_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_scheduled_at ON meetings(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);
+CREATE INDEX IF NOT EXISTS idx_meetings_series_id ON meetings(recurrence_series_id);
 
 CREATE TABLE IF NOT EXISTS meeting_participants (
     id UUID PRIMARY KEY,
