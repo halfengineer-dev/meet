@@ -28,6 +28,8 @@ export default function DashboardPage() {
     const [showJoinModal, setShowJoinModal] = useState(false);
     const [showProModal, setShowProModal] = useState(false);
     const [showUserDropdown, setShowUserDropdown] = useState(false);
+    const [showNewMeetingDropdown, setShowNewMeetingDropdown] = useState(false);
+    const [showMeetingsTabDropdown, setShowMeetingsTabDropdown] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
 
@@ -456,17 +458,51 @@ export default function DashboardPage() {
                                         </svg>
                                     </div>
                                     <h2>New Meeting</h2>
-                                    <p>Start an instant video meeting</p>
-                                    <button
-                                        type="button"
-                                        className="faceonn-dash-btn-action blue"
-                                        onClick={handleCreateMeeting}
-                                        disabled={isCreating}>
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-                                        </svg>
-                                        {isCreating ? 'Creating Room...' : 'Start Meeting →'}
-                                    </button>
+                                    <p>Start an instant meeting or schedule for later</p>
+                                    <div className="new-meeting-dropdown-wrap">
+                                        <button
+                                            type="button"
+                                            className="faceonn-dash-btn-action blue"
+                                            onClick={() => setShowNewMeetingDropdown(!showNewMeetingDropdown)}>
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                                            </svg>
+                                            <span>+ New Meeting ▾</span>
+                                        </button>
+
+                                        {showNewMeetingDropdown && (
+                                            <div className="new-meeting-menu">
+                                                <button
+                                                    type="button"
+                                                    className="meeting-menu-item"
+                                                    onClick={() => {
+                                                        setShowNewMeetingDropdown(false);
+                                                        handleOpenSchedule();
+                                                    }}>
+                                                    <span className="menu-item-icon">📅</span>
+                                                    <div className="menu-item-text">
+                                                        <strong>Schedule a Meeting</strong>
+                                                        <span>Plan ahead and send calendar invites</span>
+                                                    </div>
+                                                </button>
+                                                <div className="meeting-menu-divider" />
+                                                <button
+                                                    type="button"
+                                                    className="meeting-menu-item"
+                                                    disabled={isCreating}
+                                                    onClick={() => {
+                                                        setShowNewMeetingDropdown(false);
+                                                        handleCreateMeeting();
+                                                    }}>
+                                                    <span className="menu-item-icon">⚡</span>
+                                                    <div className="menu-item-text">
+                                                        <strong>Start Instant Meeting</strong>
+                                                        <span>{isCreating ? 'Creating Room...' : 'Start a meeting right now'}</span>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="card-right-visual">
                                     <img
@@ -700,20 +736,55 @@ export default function DashboardPage() {
                                         <p>Manage and access all your hosted and scheduled meetings.</p>
                                     </div>
 
-                                    <div style={{ display: 'flex', gap: '10px' }}>
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                         <button
                                             type="button"
                                             className="faceonn-dash-btn-action blue"
                                             onClick={handleOpenSchedule}>
-                                            + Schedule a Meeting
+                                            📅 Schedule a Meeting
                                         </button>
-                                        <button
-                                            type="button"
-                                            className="faceonn-dash-btn-secondary"
-                                            onClick={handleCreateMeeting}
-                                            disabled={isCreating}>
-                                            + Instant Meeting
-                                        </button>
+
+                                        <div className="new-meeting-dropdown-wrap">
+                                            <button
+                                                type="button"
+                                                className="faceonn-dash-btn-secondary"
+                                                onClick={() => setShowMeetingsTabDropdown(!showMeetingsTabDropdown)}>
+                                                + New Meeting ▾
+                                            </button>
+
+                                            {showMeetingsTabDropdown && (
+                                                <div className="new-meeting-menu" style={{ right: 0, left: 'auto' }}>
+                                                    <button
+                                                        type="button"
+                                                        className="meeting-menu-item"
+                                                        onClick={() => {
+                                                            setShowMeetingsTabDropdown(false);
+                                                            handleOpenSchedule();
+                                                        }}>
+                                                        <span className="menu-item-icon">📅</span>
+                                                        <div className="menu-item-text">
+                                                            <strong>Schedule a Meeting</strong>
+                                                            <span>Plan ahead and send calendar invites</span>
+                                                        </div>
+                                                    </button>
+                                                    <div className="meeting-menu-divider" />
+                                                    <button
+                                                        type="button"
+                                                        className="meeting-menu-item"
+                                                        disabled={isCreating}
+                                                        onClick={() => {
+                                                            setShowMeetingsTabDropdown(false);
+                                                            handleCreateMeeting();
+                                                        }}>
+                                                        <span className="menu-item-icon">⚡</span>
+                                                        <div className="menu-item-text">
+                                                            <strong>Start Instant Meeting</strong>
+                                                            <span>{isCreating ? 'Creating Room...' : 'Start a meeting right now'}</span>
+                                                        </div>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 
