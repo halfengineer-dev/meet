@@ -6,7 +6,8 @@ import {
     IUpdateMeetingDTO,
     IScheduleMeetingResponse,
     IMeetingDetailsResponse,
-    IMeetingInvitation
+    IMeetingInvitation,
+    IPublicMeetingInfo
 } from './types';
 
 interface AuthResponse {
@@ -210,19 +211,47 @@ export class AuthApiClient {
         );
     }
 
+    public async endMeeting(
+        meetingId: string,
+        accessToken: string
+    ): Promise<{ meeting: IMeeting }> {
+        return this.request<{ meeting: IMeeting }>(`/api/meetings/${encodeURIComponent(meetingId)}/end`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async getPublicMeetingInfo(
+        roomId: string,
+        accessToken?: string | null
+    ): Promise<IPublicMeetingInfo> {
+        return this.request<IPublicMeetingInfo>(`/api/meetings/${encodeURIComponent(roomId)}/public-info`, {
+            method: 'GET',
+            headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+        });
+    }
+
     public async getMeetingToken(
         roomId: string,
         accessToken: string,
-        passcode?: string
+        passcode?: string,
+        options?: { allowHostAutoStart?: boolean }
     ): Promise<{
         meeting: IMeeting;
         token: string;
         role: 'owner' | 'moderator' | 'participant';
     }> {
-        let url = `/api/meetings/${encodeURIComponent(roomId)}/token`;
+        const params = new URLSearchParams();
         if (passcode) {
-            url += `?passcode=${encodeURIComponent(passcode)}`;
+            params.set('passcode', passcode);
         }
+        if (options?.allowHostAutoStart === false) {
+            params.set('autoStart', 'false');
+        }
+        const query = params.toString();
+        const url = `/api/meetings/${encodeURIComponent(roomId)}/token${query ? `?${query}` : ''}`;
         return this.request(url, {
             method: 'GET',
             headers: {

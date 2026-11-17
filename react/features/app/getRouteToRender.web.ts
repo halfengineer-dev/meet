@@ -15,6 +15,7 @@ import AuthLoadingScreen from '../auth/components/AuthLoadingScreen.web';
 import DashboardPage from '../auth/components/DashboardPage.web';
 import LandingPage from '../auth/components/LandingPage.web';
 import LoginPage from '../auth/components/LoginPage.web';
+import MeetingWaitingRoom from '../auth/components/MeetingWaitingRoom.web';
 import SignUpPage from '../auth/components/SignUpPage.web';
 import { getAccessToken, isAuthInitializing, isAuthenticated } from '../auth/functions';
 import { authApiClient } from '../auth/api';
@@ -92,38 +93,89 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
         return route;
     }
 
-    // 6. Protected Meeting Route (any other path, e.g. /my-meeting or /room/xyz)
-    if (!isUserAuth) {
-        // Critical business rule: Unauthenticated users CANNOT join or create meetings!
-        const target = window.location.pathname + window.location.search;
-        return {
-            component: undefined,
-            href: `/login?redirect=${encodeURIComponent(target)}`
-        };
-    }
-
-    // User is authenticated and accessing a meeting route
-    const room = state['features/base/conference'].room;
+    // 6. Meeting Route (any other path, e.g. /my-meeting or /7tk-wk1-x3t)
+    const room = state['features/base/conference'].room
+        || pathname.replace(/^\/+/, '').split('/')[0];
 
     if (isRoomValid(room) && room) {
-        // Authorize with backend and ensure Jitsi JWT is set before connecting
         const currentJwt = state['features/base/jwt']?.jwt;
-        if (!currentJwt && dispatch) {
-            const accessToken = getAccessToken(state);
-            if (accessToken) {
-                try {
-                    const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-                    const passcode = urlParams?.get('passcode') || undefined;
-                    const data = await authApiClient.getMeetingToken(room, accessToken, passcode);
-                    dispatch(setJWT(data.token));
-                } catch (err: any) {
-                    logger.error('Failed to get meeting token from backend', err);
-                    const errorMsg = err.message || 'Failed to authorize meeting';
-                    return {
-                        component: undefined,
-                        href: `/dashboard?error=${encodeURIComponent(errorMsg)}`
-                    };
+
+        // Already authorized with a valid Jitsi JWT (e.g. just unlocked from MeetingWaitingRoom)
+        if (currentJwt) {
+            return _getWebConferenceRoute(state);
+        }
+
+        const accessToken = getAccessToken(state);
+
+        // Step A: Inspect public meeting status BEFORE forcing login or connecting to Jitsi.
+        // Shows Zoom-style "Waiting for the host to start this meeting" screen for scheduled meetings.
+        try {
+            const publicInfo = await authApiClient.getPublicMeetingInfo(room, accessToken);
+
+            if (publicInfo.exists) {
+                if (publicInfo.status === 'cancelled' || publicInfo.status === 'ended') {
+                    const route = _getEmptyRoute();
+                    route.component = MeetingWaitingRoom;
+                    return route;
                 }
+
+                if (publicInfo.isScheduled && publicInfo.status === 'scheduled') {
+                    if (!publicInfo.isOwner && publicInfo.joinBeforeHost === false) {
+                        const route = _getEmptyRoute();
+                        route.component = MeetingWaitingRoom;
+                        return route;
+                    }
+
+                    if (publicInfo.isOwner) {
+                        const route = _getEmptyRoute();
+                        route.component = MeetingWaitingRoom;
+                        return route;
+                    }
+                }
+            }
+        } catch (publicErr) {
+            logger.warn('Failed to fetch public meeting info, falling back to auth gate', publicErr);
+        }
+
+        // Step B: Critical business rule — unauthenticated users cannot join active rooms
+        if (!isUserAuth) {
+            const target = window.location.pathname + window.location.search;
+            return {
+                component: undefined,
+                href: `/login?redirect=${encodeURIComponent(target)}`
+            };
+        }
+
+        // Step C: Authorize with backend and ensure Jitsi JWT is set before connecting
+        if (dispatch && accessToken) {
+            try {
+                const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+                const passcode = urlParams?.get('passcode') || undefined;
+                const data = await authApiClient.getMeetingToken(room, accessToken, passcode, {
+                    allowHostAutoStart: false
+                });
+                dispatch(setJWT(data.token));
+            } catch (err: any) {
+                logger.warn('Meeting access gated by backend policy:', err.code, err.message);
+
+                if (
+                    err.code === 'WAITING_FOR_HOST'
+                    || err.code === 'HOST_NOT_STARTED'
+                    || err.code === 'PASSCODE_REQUIRED'
+                    || err.code === 'INVALID_PASSCODE'
+                    || err.code === 'MEETING_CANCELLED'
+                    || err.code === 'MEETING_ENDED'
+                ) {
+                    const route = _getEmptyRoute();
+                    route.component = MeetingWaitingRoom;
+                    return route;
+                }
+
+                const errorMsg = err.message || 'Failed to authorize meeting';
+                return {
+                    component: undefined,
+                    href: `/dashboard?error=${encodeURIComponent(errorMsg)}`
+                };
             }
         }
 

@@ -120,17 +120,18 @@ export class MeetingService {
       roomId = user.pmi;
     }
 
-    // 5. Security & Passcode Hashing
+    // 5. Security & Passcode Hashing (NEVER persist plaintext passcode in settings JSONB)
+    const { passcode: rawInputPasscode, ...cleanInputSettings } = data.settings || {};
     const settings: MeetingSettings = {
       ...DEFAULT_MEETING_SETTINGS,
-      ...(data.settings || {}),
+      ...cleanInputSettings,
     };
 
     let passcodeHash: string | null = null;
     let rawPasscode: string | undefined = undefined;
 
-    if (settings.passcodeEnabled && data.settings?.passcode) {
-      rawPasscode = data.settings.passcode.trim();
+    if (settings.passcodeEnabled && rawInputPasscode) {
+      rawPasscode = rawInputPasscode.trim();
       if (rawPasscode.length < 4 || rawPasscode.length > 32) {
         throw new Error('Passcode must be between 4 and 32 characters');
       }
@@ -225,10 +226,60 @@ export class MeetingService {
     };
   }
 
+  public async getPublicMeetingInfo(
+    roomId: string,
+    viewerUserId?: string | null
+  ): Promise<{
+    exists: boolean;
+    id?: string;
+    roomId: string;
+    title?: string;
+    hostName?: string;
+    status?: 'active' | 'ended' | 'scheduled' | 'cancelled';
+    isScheduled?: boolean;
+    scheduledAt?: string | null;
+    durationMinutes?: number;
+    timezone?: string;
+    joinBeforeHost?: boolean;
+    passcodeEnabled?: boolean;
+    waitingRoomEnabled?: boolean;
+    requireAuthentication?: boolean;
+    isOwner?: boolean;
+  }> {
+    const normalizedRoom = roomId.toLowerCase().trim();
+    const meeting = await meetingRepository.findByRoomId(normalizedRoom);
+
+    if (!meeting) {
+      return { exists: false, roomId: normalizedRoom };
+    }
+
+    const owner = await userRepository.findById(meeting.owner_user_id);
+    const isOwner = Boolean(viewerUserId && meeting.owner_user_id === viewerUserId);
+
+    return {
+      exists: true,
+      id: meeting.id,
+      roomId: meeting.room_id,
+      title: meeting.title,
+      hostName: owner?.name || 'Meeting Host',
+      status: meeting.status,
+      isScheduled: meeting.is_scheduled,
+      scheduledAt: meeting.scheduled_at ? meeting.scheduled_at.toISOString() : null,
+      durationMinutes: meeting.duration_minutes,
+      timezone: meeting.timezone,
+      joinBeforeHost: meeting.settings.joinBeforeHost,
+      passcodeEnabled: Boolean(meeting.settings.passcodeEnabled && meeting.passcode_hash),
+      waitingRoomEnabled: meeting.settings.waitingRoomEnabled,
+      requireAuthentication: meeting.settings.requireAuthentication,
+      isOwner,
+    };
+  }
+
   public async getMeetingOrJoin(
     userId: string,
     roomId: string,
-    passcode?: string
+    passcode?: string,
+    options?: { allowHostAutoStart?: boolean }
   ): Promise<{ meeting: MeetingRecord; token: string; role: 'owner' | 'moderator' | 'participant' }> {
     const user = await userRepository.findById(userId);
     if (!user || user.status !== 'active') {
@@ -247,16 +298,50 @@ export class MeetingService {
       });
     }
 
-    // Security Check 1: Check if meeting was cancelled
+    // Security Check 1: Check if meeting was cancelled or ended
     if (meeting.status === 'cancelled') {
       const err = new Error('This scheduled meeting has been cancelled by the host.');
       (err as any).statusCode = 410;
+      (err as any).code = 'MEETING_CANCELLED';
+      throw err;
+    }
+
+    if (meeting.status === 'ended') {
+      const err = new Error('This meeting has already ended.');
+      (err as any).statusCode = 410;
+      (err as any).code = 'MEETING_ENDED';
       throw err;
     }
 
     const isOwner = meeting.owner_user_id === user.id;
 
-    // Security Check 2: Passcode enforcement for non-owners
+    // Security Check 2: Join-before-host enforcement (checked BEFORE passcode so waiting participants see Zoom waiting screen immediately)
+    if (
+      meeting.is_scheduled &&
+      meeting.settings.joinBeforeHost === false &&
+      !isOwner &&
+      meeting.status === 'scheduled'
+    ) {
+      const err = new Error('The host has not started this meeting yet. Please wait for the host.');
+      (err as any).statusCode = 403;
+      (err as any).code = 'WAITING_FOR_HOST';
+      throw err;
+    }
+
+    // Security Check 3: Prevent accidental auto-start when host visits link directly without clicking Start
+    if (
+      isOwner &&
+      meeting.is_scheduled &&
+      meeting.status === 'scheduled' &&
+      options?.allowHostAutoStart === false
+    ) {
+      const err = new Error('This scheduled meeting has not been started yet.');
+      (err as any).statusCode = 403;
+      (err as any).code = 'HOST_NOT_STARTED';
+      throw err;
+    }
+
+    // Security Check 4: Passcode enforcement for non-owners
     if (meeting.settings.passcodeEnabled && meeting.passcode_hash && !isOwner) {
       if (!passcode) {
         const err = new Error('Passcode required to join this meeting');
@@ -273,19 +358,6 @@ export class MeetingService {
       }
     }
 
-    // Security Check 3: Join before host enforcement
-    if (
-      meeting.is_scheduled &&
-      meeting.settings.joinBeforeHost === false &&
-      !isOwner &&
-      meeting.status === 'scheduled'
-    ) {
-      const err = new Error('The host has not started this meeting yet. Please wait for the host.');
-      (err as any).statusCode = 403;
-      (err as any).code = 'WAITING_FOR_HOST';
-      throw err;
-    }
-
     let participant = await meetingRepository.getParticipant(meeting.id, user.id);
     let role: 'owner' | 'moderator' | 'participant' = isOwner ? 'owner' : 'participant';
 
@@ -297,7 +369,7 @@ export class MeetingService {
 
     const isModerator = role === 'owner' || role === 'moderator';
 
-    // If owner enters the scheduled meeting, automatically transition status to 'active'
+    // If owner explicitly joins/starts the scheduled meeting, transition status to 'active'
     if (isOwner && meeting.status === 'scheduled') {
       meeting = await meetingRepository.updateMeeting(meeting.id, { status: 'active' });
     }
@@ -400,9 +472,10 @@ export class MeetingService {
     }
 
     if (data.settings) {
-      const newSettings = { ...meeting.settings, ...data.settings };
-      if (data.settings.passcodeEnabled && data.settings.passcode) {
-        updates.passcode_hash = this.hashPasscode(data.settings.passcode.trim());
+      const { passcode: rawInputPasscode, ...cleanUpdates } = data.settings;
+      const newSettings = { ...meeting.settings, ...cleanUpdates };
+      if (data.settings.passcodeEnabled && rawInputPasscode) {
+        updates.passcode_hash = this.hashPasscode(rawInputPasscode.trim());
       } else if (data.settings.passcodeEnabled === false) {
         updates.passcode_hash = null;
         newSettings.passcodeEnabled = false;
@@ -461,6 +534,18 @@ export class MeetingService {
     });
 
     return { meeting: updated, token };
+  }
+
+  public async endMeeting(userId: string, meetingId: string): Promise<MeetingRecord> {
+    const meeting = await meetingRepository.findById(meetingId);
+    if (!meeting) {
+      throw new Error('Meeting not found');
+    }
+    if (meeting.owner_user_id !== userId) {
+      throw new Error('Unauthorized: Only meeting owner can end this meeting');
+    }
+
+    return meetingRepository.updateMeeting(meetingId, { status: 'ended' });
   }
 
   public async listUserMeetings(userId: string): Promise<MeetingRecord[]> {

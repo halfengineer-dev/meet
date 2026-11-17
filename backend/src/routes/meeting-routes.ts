@@ -1,12 +1,23 @@
 import { Router } from 'express';
-import { requireAuth, AuthenticatedRequest } from '../auth/middleware';
+import { requireAuth, optionalAuth, AuthenticatedRequest } from '../auth/middleware';
 import { meetingService } from '../meetings/meeting-service';
 import { meetingCalendarService } from '../meetings/meeting-calendar-service';
 import { MeetingRecord } from '../db/types';
 
 export const meetingRouter = Router();
 
-// Protect ALL meeting routes with requireAuth
+// Public/optional-auth room status endpoint (used by Zoom-style waiting screen before entering conference)
+meetingRouter.get('/:roomId/public-info', optionalAuth, async (req: AuthenticatedRequest, res) => {
+  try {
+    const roomId = Array.isArray(req.params.roomId) ? req.params.roomId[0] : req.params.roomId;
+    const info = await meetingService.getPublicMeetingInfo(roomId, req.user?.id || null);
+    res.json(info);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || 'Failed to inspect meeting status' });
+  }
+});
+
+// Protect ALL remaining meeting routes with requireAuth
 meetingRouter.use(requireAuth);
 
 function sanitizeMeeting(m: MeetingRecord) {
@@ -187,6 +198,21 @@ meetingRouter.post('/:id/start', async (req: AuthenticatedRequest, res) => {
   }
 });
 
+// POST /api/meetings/:id/end - Host ends an active meeting
+meetingRouter.post('/:id/end', async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const updated = await meetingService.endMeeting(user.id, id);
+
+    res.json({
+      meeting: sanitizeMeeting(updated),
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || 'Failed to end meeting' });
+  }
+});
+
 // GET /api/meetings/:id/calendar.ics - Export RFC 5545 ICS calendar file
 meetingRouter.get('/:id/calendar.ics', async (req: AuthenticatedRequest, res) => {
   try {
@@ -252,8 +278,11 @@ meetingRouter.get('/:roomId/token', async (req: AuthenticatedRequest, res) => {
     const user = req.user!;
     const roomId = Array.isArray(req.params.roomId) ? req.params.roomId[0] : req.params.roomId;
     const passcode = (req.query.passcode as string) || (req.headers['x-meeting-passcode'] as string);
+    const allowHostAutoStart = req.query.autoStart !== 'false';
 
-    const { meeting, token, role } = await meetingService.getMeetingOrJoin(user.id, roomId, passcode);
+    const { meeting, token, role } = await meetingService.getMeetingOrJoin(user.id, roomId, passcode, {
+      allowHostAutoStart,
+    });
 
     res.json({
       meeting: sanitizeMeeting(meeting),
@@ -274,9 +303,11 @@ meetingRouter.post('/:roomId/join', async (req: AuthenticatedRequest, res) => {
   try {
     const user = req.user!;
     const roomId = Array.isArray(req.params.roomId) ? req.params.roomId[0] : req.params.roomId;
-    const { passcode } = req.body || {};
+    const { passcode, allowHostAutoStart } = req.body || {};
 
-    const { meeting, token, role } = await meetingService.getMeetingOrJoin(user.id, roomId, passcode);
+    const { meeting, token, role } = await meetingService.getMeetingOrJoin(user.id, roomId, passcode, {
+      allowHostAutoStart: allowHostAutoStart !== false,
+    });
 
     res.json({
       meeting: sanitizeMeeting(meeting),

@@ -164,7 +164,14 @@ export default function DashboardPage() {
         setTimeout(() => setCopiedMeetingId(null), 2000);
     };
 
-    const handleStartOrJoinMeeting = (meeting: IMeeting) => {
+    const handleStartOrJoinMeeting = async (meeting: IMeeting) => {
+        if (accessToken && meeting.ownerId === user?.id && meeting.isScheduled && meeting.status === 'scheduled') {
+            try {
+                await authApiClient.startMeeting(meeting.id, accessToken);
+            } catch (_) {
+                // Fall through to room page which handles state cleanly
+            }
+        }
         window.location.href = `/${meeting.roomId}`;
     };
 

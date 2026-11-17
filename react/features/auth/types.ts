@@ -124,3 +124,21 @@ export interface IMeetingDetailsResponse {
     icsUrl: string;
     invitationText: string;
 }
+
+export interface IPublicMeetingInfo {
+    exists: boolean;
+    id?: string;
+    roomId: string;
+    title?: string;
+    hostName?: string;
+    status?: 'active' | 'ended' | 'scheduled' | 'cancelled';
+    isScheduled?: boolean;
+    scheduledAt?: string | null;
+    durationMinutes?: number;
+    timezone?: string;
+    joinBeforeHost?: boolean;
+    passcodeEnabled?: boolean;
+    waitingRoomEnabled?: boolean;
+    requireAuthentication?: boolean;
+    isOwner?: boolean;
+}

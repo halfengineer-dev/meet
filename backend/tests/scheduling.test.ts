@@ -193,6 +193,67 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
       const attendeeJoin = await meetingService.getMeetingOrJoin(attendeeUser.id, scheduled.meeting.room_id);
       expect(attendeeJoin.role).toBe('participant');
     });
+
+    it('checks waiting-for-host before passcode and never stores plaintext passcode in settings', async () => {
+      const futureDate = new Date(Date.now() + 3600 * 1000).toISOString();
+      const scheduled = await meetingService.scheduleMeeting(hostUser.id, {
+        title: 'Locked Future Session',
+        scheduledAt: futureDate,
+        timezone: 'Asia/Kolkata',
+        durationMinutes: 60,
+        settings: {
+          joinBeforeHost: false,
+          passcodeEnabled: true,
+          passcode: 'TopSecret99',
+        },
+      });
+
+      // Plaintext passcode must NOT be stored inside settings JSON
+      expect((scheduled.meeting.settings as any).passcode).toBeUndefined();
+
+      // Public info reveals safe status without leaking passcode
+      const publicInfo = await meetingService.getPublicMeetingInfo(scheduled.meeting.room_id, null);
+      expect(publicInfo.exists).toBe(true);
+      expect(publicInfo.status).toBe('scheduled');
+      expect(publicInfo.joinBeforeHost).toBe(false);
+      expect(publicInfo.passcodeEnabled).toBe(true);
+      expect((publicInfo as any).passcode).toBeUndefined();
+
+      // Attendee gets WAITING_FOR_HOST first (before passcode prompt)
+      try {
+        await meetingService.getMeetingOrJoin(attendeeUser.id, scheduled.meeting.room_id);
+        expect.unreachable('Should have rejected with WAITING_FOR_HOST');
+      } catch (err: any) {
+        expect(err.code).toBe('WAITING_FOR_HOST');
+      }
+
+      // Host visiting link with allowHostAutoStart: false gets HOST_NOT_STARTED instead of silently activating
+      try {
+        await meetingService.getMeetingOrJoin(hostUser.id, scheduled.meeting.room_id, undefined, {
+          allowHostAutoStart: false,
+        });
+        expect.unreachable('Should have rejected with HOST_NOT_STARTED');
+      } catch (err: any) {
+        expect(err.code).toBe('HOST_NOT_STARTED');
+      }
+
+      // Once host explicitly starts, attendee is now prompted for passcode
+      await meetingService.startMeeting(hostUser.id, scheduled.meeting.id);
+      try {
+        await meetingService.getMeetingOrJoin(attendeeUser.id, scheduled.meeting.room_id);
+        expect.unreachable('Should have rejected with PASSCODE_REQUIRED');
+      } catch (err: any) {
+        expect(err.code).toBe('PASSCODE_REQUIRED');
+      }
+
+      // With right passcode, attendee joins
+      const joined = await meetingService.getMeetingOrJoin(
+        attendeeUser.id,
+        scheduled.meeting.room_id,
+        'TopSecret99'
+      );
+      expect(joined.role).toBe('participant');
+    });
   });
 
   describe('Section D & F: Calendar Integration & RFC 5545 ICS Export', () => {
