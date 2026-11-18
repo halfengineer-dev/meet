@@ -79,16 +79,99 @@ ALTER TABLE meetings ADD COLUMN IF NOT EXISTS description TEXT;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS is_scheduled BOOLEAN DEFAULT FALSE;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS meeting_type VARCHAR(20) DEFAULT 'instant';
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_series_id UUID REFERENCES meeting_recurrence_series(id) ON DELETE SET NULL;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_type VARCHAR(30) DEFAULT 'none';
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_rule TEXT;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_end_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS recurrence_count INT;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE meetings ADD COLUMN IF NOT EXISTS passcode_hash VARCHAR(128);
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS join_before_host_minutes INT DEFAULT 0;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS audio_type VARCHAR(20) DEFAULT 'computer';
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS auto_recording VARCHAR(20) DEFAULT 'none';
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS registration_required BOOLEAN DEFAULT FALSE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS alternative_host_ids UUID[] DEFAULT ARRAY[]::UUID[];
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS series_status VARCHAR(30) DEFAULT 'active';
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS ended_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZONE;
 
 CREATE INDEX IF NOT EXISTS idx_meetings_room_id ON meetings(room_id);
 CREATE INDEX IF NOT EXISTS idx_meetings_owner ON meetings(owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_meetings_scheduled_at ON meetings(scheduled_at);
 CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);
 CREATE INDEX IF NOT EXISTS idx_meetings_series_id ON meetings(recurrence_series_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_series_status ON meetings(series_status);
+
+-- Individual scheduled occurrences belonging to a meeting series
+CREATE TABLE IF NOT EXISTS meeting_occurrences (
+    id UUID PRIMARY KEY,
+    meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    occurrence_number INT NOT NULL DEFAULT 1,
+    scheduled_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    scheduled_end_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    actual_started_at TIMESTAMP WITH TIME ZONE,
+    actual_ended_at TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
+    session_id UUID,
+    started_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    ended_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (meeting_id, scheduled_at)
+);
+
+CREATE INDEX IF NOT EXISTS idx_occurrences_meeting_id ON meeting_occurrences(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_occurrences_scheduled_at ON meeting_occurrences(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_occurrences_status ON meeting_occurrences(status);
+CREATE INDEX IF NOT EXISTS idx_occurrences_meeting_scheduled ON meeting_occurrences(meeting_id, scheduled_at);
+
+-- Live conference sessions tied to a specific occurrence (isolated internal Jitsi room per session)
+CREATE TABLE IF NOT EXISTS meeting_sessions (
+    id UUID PRIMARY KEY,
+    meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    occurrence_id UUID NOT NULL REFERENCES meeting_occurrences(id) ON DELETE CASCADE,
+    jitsi_room_name VARCHAR(180) UNIQUE NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'active',
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP WITH TIME ZONE,
+    started_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    ended_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    termination_reason VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_meeting_sessions_meeting_id ON meeting_sessions(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_sessions_occurrence_id ON meeting_sessions(occurrence_id);
+CREATE INDEX IF NOT EXISTS idx_meeting_sessions_status ON meeting_sessions(status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_session_per_occurrence
+    ON meeting_sessions(occurrence_id)
+    WHERE status = 'active';
+
+-- Authorized alternative hosts (validated registered Faceonn users)
+CREATE TABLE IF NOT EXISTS meeting_alternative_hosts (
+    id UUID PRIMARY KEY,
+    meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (meeting_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_alt_hosts_meeting_id ON meeting_alternative_hosts(meeting_id);
+CREATE INDEX IF NOT EXISTS idx_alt_hosts_user_id ON meeting_alternative_hosts(user_id);
+
+-- Optional meeting registrations
+CREATE TABLE IF NOT EXISTS meeting_registrations (
+    id UUID PRIMARY KEY,
+    meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'approved',
+    registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (meeting_id, email)
+);
+
+CREATE INDEX IF NOT EXISTS idx_registrations_meeting_id ON meeting_registrations(meeting_id);
 
 CREATE TABLE IF NOT EXISTS meeting_participants (
     id UUID PRIMARY KEY,

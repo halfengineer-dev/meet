@@ -11,6 +11,7 @@ import {
     AUTH_REGISTER_FAILURE,
     AUTH_REGISTER_START,
     AUTH_REGISTER_SUCCESS,
+    AUTH_SET_ACTIVE_MEETING_SESSION,
     AUTH_SET_REDIRECT
 } from './actionTypes';
 import { AUTH_STORE_NAME } from './constants';
@@ -23,7 +24,8 @@ const DEFAULT_STATE: IAuthState = {
     isInitializing: true,
     isLoading: false,
     error: null,
-    redirectTarget: null
+    redirectTarget: null,
+    activeMeetingSession: null
 };
 
 ReducerRegistry.register<IAuthState>(AUTH_STORE_NAME, (state = DEFAULT_STATE, action: any): IAuthState => {
@@ -98,6 +100,12 @@ ReducerRegistry.register<IAuthState>(AUTH_STORE_NAME, (state = DEFAULT_STATE, ac
         return {
             ...state,
             redirectTarget: action.target
+        };
+
+    case AUTH_SET_ACTIVE_MEETING_SESSION:
+        return {
+            ...state,
+            activeMeetingSession: action.session
         };
 
     default:

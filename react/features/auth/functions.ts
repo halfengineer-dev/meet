@@ -1,6 +1,6 @@
 import { IReduxState } from '../app/types';
 import { AUTH_STORE_NAME } from './constants';
-import { IAuthState, IUser } from './types';
+import { IActiveMeetingSession, IAuthState, IUser } from './types';
 
 export function getAuthState(state: IReduxState): IAuthState {
     return (state as any)[AUTH_STORE_NAME] || {
@@ -40,5 +40,9 @@ export function getAuthError(state: IReduxState): string | null {
 
 export function getRedirectTarget(state: IReduxState): string | null {
     return getAuthState(state).redirectTarget;
+}
+
+export function getActiveMeetingSession(state: IReduxState): IActiveMeetingSession | null {
+    return getAuthState(state).activeMeetingSession || null;
 }
 

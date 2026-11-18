@@ -12,12 +12,13 @@ import {
     AUTH_REGISTER_FAILURE,
     AUTH_REGISTER_START,
     AUTH_REGISTER_SUCCESS,
+    AUTH_SET_ACTIVE_MEETING_SESSION,
     AUTH_SET_REDIRECT
 } from './actionTypes';
 import { authApiClient } from './api';
 import { AUTH_ROUTES } from './constants';
 import { getAccessToken, getRedirectTarget } from './functions';
-import { IUser } from './types';
+import { IActiveMeetingSession, IUser } from './types';
 
 export function clearAuthError() {
     return {
@@ -29,6 +30,13 @@ export function setRedirectTarget(target: string | null) {
     return {
         type: AUTH_SET_REDIRECT,
         target
+    };
+}
+
+export function setActiveMeetingSession(session: IActiveMeetingSession | null) {
+    return {
+        type: AUTH_SET_ACTIVE_MEETING_SESSION,
+        session
     };
 }
 

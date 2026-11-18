@@ -2,14 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 
 import { appWillNavigate } from '../../base/app/actions';
+import { setRoom } from '../../base/conference/actions';
 import { setJWT } from '../../base/jwt/actions';
 import { updateSettings } from '../../base/settings/actions';
 import { IReduxState } from '../../app/types';
 import { _getRouteToRender } from '../../app/getRouteToRender';
-import { logout } from '../actions';
+import { logout, setActiveMeetingSession } from '../actions';
 import { authApiClient } from '../api';
 import { getAccessToken, getAuthUser, isAuthenticated } from '../functions';
-import { IPublicMeetingInfo } from '../types';
+import { IActiveMeetingSession, IPublicMeetingInfo } from '../types';
 
 type GateMode =
     | 'loading'
@@ -18,6 +19,7 @@ type GateMode =
     | 'guest_join'
     | 'auth_required'
     | 'not_found'
+    | 'expired'
     | 'passcode_required'
     | 'cancelled'
     | 'ended'
@@ -124,13 +126,19 @@ export default function MeetingWaitingRoom() {
         };
     }, []);
 
-    const enterConferenceWithToken = useCallback(async (jwtToken: string) => {
+    const enterConferenceWithSession = useCallback(async (
+        jwtToken: string,
+        sessionPayload: IActiveMeetingSession
+    ) => {
         if (enteringRef.current) return;
         enteringRef.current = true;
         setMode('entering');
-        dispatch(setJWT(jwtToken));
 
-        // Let Redux state reflect the new JWT, then navigate directly into Conference
+        dispatch(setActiveMeetingSession(sessionPayload));
+        dispatch(setJWT(jwtToken));
+        dispatch(setRoom(sessionPayload.jitsiRoomName));
+
+        // Let Redux state reflect the new JWT + isolated occurrence Jitsi room, then ensure Conference mounts
         setTimeout(() => {
             if (app && typeof app._navigate === 'function') {
                 dispatch((d: any, getState: () => IReduxState) => {
@@ -142,10 +150,8 @@ export default function MeetingWaitingRoom() {
                         }
                     });
                 });
-            } else {
-                window.location.reload();
             }
-        }, 60);
+        }, 80);
     }, [app, dispatch]);
 
     const attemptTokenJoin = useCallback(async (inputPasscode?: string) => {
@@ -159,7 +165,19 @@ export default function MeetingWaitingRoom() {
             const data = await authApiClient.getMeetingToken(roomId, accessToken, inputPasscode, {
                 allowHostAutoStart: false
             });
-            await enterConferenceWithToken(data.token);
+            const jitsiRoomName = data.session?.jitsiRoomName || data.meeting.roomId;
+            await enterConferenceWithSession(data.token, {
+                meetingId: data.meeting.id,
+                publicRoomId: data.meeting.roomId,
+                jitsiRoomName,
+                occurrenceId: data.occurrence?.id || '',
+                sessionId: data.session?.id || '',
+                title: data.meeting.title,
+                role: data.role,
+                isHost: data.role === 'owner' || data.role === 'moderator',
+                isOwner: data.role === 'owner',
+                isRecurring: data.meeting.meetingType === 'recurring'
+            });
         } catch (err: any) {
             if (err.code === 'WAITING_FOR_HOST') {
                 setMode('waiting_for_host');
@@ -173,14 +191,18 @@ export default function MeetingWaitingRoom() {
                 setMode('passcode_required');
             } else if (err.code === 'MEETING_CANCELLED') {
                 setMode('cancelled');
+            } else if (err.code === 'MEETING_EXPIRED') {
+                setMode('expired');
             } else if (err.code === 'MEETING_ENDED') {
                 setMode('ended');
+            } else if (err.code === 'MEETING_NOT_FOUND') {
+                setMode('not_found');
             } else {
                 setStatusMessage(err.message || 'Unable to join this meeting right now.');
                 setMode('error');
             }
         }
-    }, [accessToken, enterConferenceWithToken, roomId]);
+    }, [accessToken, enterConferenceWithSession, roomId]);
 
     const fetchStatus = useCallback(async (isPoll = false) => {
         if (!roomId || enteringRef.current) return;
@@ -189,32 +211,35 @@ export default function MeetingWaitingRoom() {
             const publicInfo = await authApiClient.getPublicMeetingInfo(roomId, accessToken);
             setInfo(publicInfo);
 
-            if (!publicInfo.exists) {
-                if (!isUserAuth) {
-                    setMode('not_found');
-                    return;
-                }
-                await attemptTokenJoin();
+            const resStatus = publicInfo.resolutionStatus || (publicInfo.exists ? publicInfo.status : 'not_found');
+
+            if (!publicInfo.exists || resStatus === 'not_found') {
+                setMode('not_found');
                 return;
             }
 
-            if (publicInfo.status === 'cancelled') {
+            if (resStatus === 'cancelled') {
                 setMode('cancelled');
                 return;
             }
 
-            if (publicInfo.status === 'ended') {
+            if (resStatus === 'expired') {
+                setMode('expired');
+                return;
+            }
+
+            if (resStatus === 'ended') {
                 setMode('ended');
                 return;
             }
 
-            // Scheduled meeting not yet started by host
-            if (publicInfo.isScheduled && publicInfo.status === 'scheduled') {
-                if (publicInfo.isOwner) {
+            // Scheduled / recurring occurrence waiting for host to start
+            if (resStatus === 'waiting_for_host') {
+                if (publicInfo.isHost) {
                     setMode('host_pre_start');
                     return;
                 }
-                if (publicInfo.joinBeforeHost === false) {
+                if (!publicInfo.canJoinBeforeHostNow) {
                     setMode('waiting_for_host');
                     if (isPoll) {
                         setLastCheckedText(`Last checked at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`);
@@ -223,7 +248,7 @@ export default function MeetingWaitingRoom() {
                 }
             }
 
-            // Meeting is ACTIVE (host started!) or joinBeforeHost === true
+            // Meeting is ACTIVE (host started!) or participant is within allowed joinBeforeHost lead window
             if (!isUserAuth) {
                 if (publicInfo.requireAuthentication) {
                     setStatusMessage(isPoll ? 'The host has started the meeting! Sign in below to join.' : null);
@@ -240,7 +265,7 @@ export default function MeetingWaitingRoom() {
             }
 
             const urlPasscode = new URLSearchParams(window.location.search).get('passcode') || undefined;
-            if (publicInfo.passcodeEnabled && !publicInfo.isOwner && !urlPasscode) {
+            if (publicInfo.passcodeEnabled && !publicInfo.isHost && !urlPasscode) {
                 setMode('passcode_required');
                 return;
             }
@@ -270,20 +295,37 @@ export default function MeetingWaitingRoom() {
 
     // Live 1-second countdown timer
     useEffect(() => {
-        if (!info?.scheduledAt) return;
-        const update = () => setCountdown(formatCountdown(info.scheduledAt));
+        const targetIso = info?.nextOccurrence?.scheduledAt || info?.scheduledAt;
+        if (!targetIso) return;
+        const update = () => setCountdown(formatCountdown(targetIso));
         update();
         const timer = setInterval(update, 1000);
         return () => clearInterval(timer);
-    }, [info?.scheduledAt]);
+    }, [info?.nextOccurrence?.scheduledAt, info?.scheduledAt]);
 
     const handleHostStartNow = async () => {
         if (!info?.id || !accessToken) return;
         setSubmitting(true);
         setStatusMessage(null);
         try {
-            const res = await authApiClient.startMeeting(info.id, accessToken);
-            await enterConferenceWithToken(res.token);
+            const res = await authApiClient.startMeeting(
+                info.id,
+                accessToken,
+                info.nextOccurrence?.id
+            );
+            const jitsiRoomName = res.session?.jitsiRoomName || res.meeting.roomId;
+            await enterConferenceWithSession(res.token, {
+                meetingId: res.meeting.id,
+                publicRoomId: res.meeting.roomId,
+                jitsiRoomName,
+                occurrenceId: res.occurrence?.id || info.nextOccurrence?.id || '',
+                sessionId: res.session?.id || '',
+                title: res.meeting.title,
+                role: res.role || 'owner',
+                isHost: true,
+                isOwner: Boolean(info.isOwner),
+                isRecurring: res.meeting.meetingType === 'recurring'
+            });
         } catch (err: any) {
             setStatusMessage(err.message || 'Failed to start meeting.');
             setSubmitting(false);
@@ -318,7 +360,19 @@ export default function MeetingWaitingRoom() {
             }
 
             dispatch(updateSettings({ displayName: res.displayName }));
-            await enterConferenceWithToken(res.token);
+            const jitsiRoomName = res.session?.jitsiRoomName || res.meeting.roomId;
+            await enterConferenceWithSession(res.token, {
+                meetingId: res.meeting.id,
+                publicRoomId: res.meeting.roomId,
+                jitsiRoomName,
+                occurrenceId: res.occurrence?.id || '',
+                sessionId: res.session?.id || '',
+                title: res.meeting.title,
+                role: 'participant',
+                isHost: false,
+                isOwner: false,
+                isRecurring: res.meeting.meetingType === 'recurring'
+            });
         } catch (err: any) {
             if (err.code === 'WAITING_FOR_HOST') {
                 setMode('waiting_for_host');
@@ -326,6 +380,8 @@ export default function MeetingWaitingRoom() {
                 setMode('auth_required');
             } else if (err.code === 'MEETING_CANCELLED') {
                 setMode('cancelled');
+            } else if (err.code === 'MEETING_EXPIRED') {
+                setMode('expired');
             } else if (err.code === 'MEETING_ENDED') {
                 setMode('ended');
             } else if (err.code === 'MEETING_NOT_FOUND') {
@@ -443,11 +499,19 @@ export default function MeetingWaitingRoom() {
                                 </div>
                             </div>
 
-                            <span className="waiting-status-badge waiting">Waiting for Host</span>
+                            <span className="waiting-status-badge waiting">
+                                {info?.lastEndedOccurrence ? 'Session Ended • Next Scheduled' : 'Waiting for Host'}
+                            </span>
 
-                            <h1>Waiting for the host to start this meeting</h1>
+                            <h1>
+                                {info?.lastEndedOccurrence && info?.nextOccurrence
+                                    ? `${info.title || 'This meeting'} has ended for today.`
+                                    : 'Waiting for the host to start this meeting'}
+                            </h1>
                             <p className="waiting-subtitle">
-                                {statusMessage || 'Please wait — this page will automatically connect you as soon as the host starts the meeting.'}
+                                {info?.lastEndedOccurrence && info?.nextOccurrence
+                                    ? `Next meeting: ${formatScheduledDateTime(info.nextOccurrence.scheduledAt, info.timezone)}. You'll be connected automatically once the host starts the next session.`
+                                    : (statusMessage || 'Please wait — this page will automatically connect you as soon as the host starts the meeting.')}
                             </p>
 
                             {/* Meeting Info Card */}
@@ -465,9 +529,14 @@ export default function MeetingWaitingRoom() {
 
                                     <div className="waiting-details-grid">
                                         <div className="waiting-detail-item">
-                                            <span className="detail-label">Start Time</span>
+                                            <span className="detail-label">
+                                                {info.lastEndedOccurrence ? 'Next Meeting' : 'Start Time'}
+                                            </span>
                                             <span className="detail-value">
-                                                {formatScheduledDateTime(info.scheduledAt, info.timezone)}
+                                                {formatScheduledDateTime(
+                                                    info.nextOccurrence?.scheduledAt || info.scheduledAt,
+                                                    info.timezone
+                                                )}
                                             </span>
                                         </div>
 
@@ -485,6 +554,13 @@ export default function MeetingWaitingRoom() {
                                             <span className="detail-label">Duration</span>
                                             <span className="detail-value">{info.durationMinutes || 30} minutes</span>
                                         </div>
+
+                                        {info.recurrenceSummary && (
+                                            <div className="waiting-detail-item" style={{ gridColumn: '1 / -1' }}>
+                                                <span className="detail-label">Recurrence</span>
+                                                <span className="detail-value">🔁 {info.recurrenceSummary}</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {(info.passcodeEnabled || info.waitingRoomEnabled) && (
@@ -863,8 +939,8 @@ export default function MeetingWaitingRoom() {
                         </div>
                     )}
 
-                    {/* Cancelled / Ended / Error States */}
-                    {(effectiveMode === 'cancelled' || effectiveMode === 'ended' || effectiveMode === 'error') && (
+                    {/* Cancelled / Ended / Expired / Error States */}
+                    {(effectiveMode === 'cancelled' || effectiveMode === 'ended' || effectiveMode === 'expired' || effectiveMode === 'error') && (
                         <div className="waiting-center-state">
                             <div className="waiting-ended-orb">
                                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -876,18 +952,22 @@ export default function MeetingWaitingRoom() {
 
                             <h1>
                                 {effectiveMode === 'cancelled'
-                                    ? 'This meeting has been cancelled'
-                                    : effectiveMode === 'ended'
-                                        ? 'This meeting has ended'
-                                        : 'Unable to join meeting'}
+                                    ? 'This meeting series has ended or been cancelled.'
+                                    : effectiveMode === 'expired'
+                                        ? 'This meeting link is no longer valid.'
+                                        : effectiveMode === 'ended'
+                                            ? 'This meeting has ended.'
+                                            : 'Unable to join meeting'}
                             </h1>
 
                             <p className="waiting-subtitle">
                                 {effectiveMode === 'cancelled'
-                                    ? `The host (${info?.hostName || 'Organizer'}) cancelled "${info?.title || roomId}".`
-                                    : effectiveMode === 'ended'
-                                        ? `"${info?.title || roomId}" is no longer active.`
-                                        : (statusMessage || 'Something went wrong while accessing this meeting.')}
+                                    ? `The host (${info?.hostName || 'Organizer'}) cancelled "${info?.title || roomId}". This permanent meeting link is no longer active.`
+                                    : effectiveMode === 'expired'
+                                        ? `The link for "${info?.title || roomId}" has expired. Please request a new meeting link from the host.`
+                                        : effectiveMode === 'ended'
+                                            ? `"${info?.title || roomId}" has completed and is no longer accepting participants.`
+                                            : (statusMessage || 'Something went wrong while accessing this meeting.')}
                             </p>
 
                             <div className="waiting-actions-row">

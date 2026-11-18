@@ -6,6 +6,9 @@ import { meetingRepository } from '../src/db/repositories/meeting-repository';
 import { userRepository } from '../src/db/repositories/user-repository';
 import { invitationRepository } from '../src/db/repositories/invitation-repository';
 import { recurrenceRepository } from '../src/db/repositories/recurrence-repository';
+import { occurrenceRepository } from '../src/db/repositories/occurrence-repository';
+import { meetingSessionRepository } from '../src/db/repositories/meeting-session-repository';
+import { alternativeHostRepository } from '../src/db/repositories/alternative-host-repository';
 import { UserRecord } from '../src/db/types';
 
 describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
@@ -13,6 +16,9 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
   let attendeeUser: UserRecord;
 
   beforeEach(async () => {
+    await meetingSessionRepository.clearAll();
+    await occurrenceRepository.clearAll();
+    await alternativeHostRepository.clearAll();
     await meetingRepository.clearAll();
     await invitationRepository.clearAll();
     await recurrenceRepository.clearAll();

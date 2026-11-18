@@ -1,6 +1,16 @@
 import { generateRoomWithoutSeparator } from '@jitsi/js-utils/random';
 
+import { setActiveMeetingSession } from '../auth/actions';
+import { authApiClient } from '../auth/api';
+import AuthLoadingScreen from '../auth/components/AuthLoadingScreen.web';
+import DashboardPage from '../auth/components/DashboardPage.web';
+import LandingPage from '../auth/components/LandingPage.web';
+import LoginPage from '../auth/components/LoginPage.web';
+import MeetingWaitingRoom from '../auth/components/MeetingWaitingRoom.web';
+import SignUpPage from '../auth/components/SignUpPage.web';
+import { getAccessToken, getActiveMeetingSession, isAuthInitializing, isAuthenticated } from '../auth/functions';
 import { IStateful } from '../base/app/types';
+import { setRoom } from '../base/conference/actions';
 import { isRoomValid } from '../base/conference/functions';
 import { isSupportedBrowser } from '../base/environment/environment';
 import { setJWT } from '../base/jwt/actions';
@@ -11,17 +21,9 @@ import UnsupportedDesktopBrowser from '../unsupported-browser/components/Unsuppo
 import BlankPage from '../welcome/components/BlankPage.web';
 import { getCustomLandingPageURL, isWelcomePageEnabled } from '../welcome/functions';
 
-import AuthLoadingScreen from '../auth/components/AuthLoadingScreen.web';
-import DashboardPage from '../auth/components/DashboardPage.web';
-import LandingPage from '../auth/components/LandingPage.web';
-import LoginPage from '../auth/components/LoginPage.web';
-import MeetingWaitingRoom from '../auth/components/MeetingWaitingRoom.web';
-import SignUpPage from '../auth/components/SignUpPage.web';
-import { getAccessToken, isAuthInitializing, isAuthenticated } from '../auth/functions';
-import { authApiClient } from '../auth/api';
 
-import { IReduxState, IStore } from './types';
 import logger from './logger';
+import { IReduxState, IStore } from './types';
 
 /**
  * Determines which route is to be rendered in order to depict a specific Redux
@@ -39,7 +41,9 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
     // 1. If authentication is still initializing, prevent any flash of content
     if (isAuthInitializing(state)) {
         const route = _getEmptyRoute();
+
         route.component = AuthLoadingScreen;
+
         return route;
     }
 
@@ -52,10 +56,13 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
             const target = redirectParam && redirectParam !== '/login' && redirectParam !== '/signup'
                 ? redirectParam
                 : '/dashboard';
+
             return { component: undefined, href: target };
         }
         const route = _getEmptyRoute();
+
         route.component = LoginPage;
+
         return route;
     }
 
@@ -66,10 +73,13 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
             const target = redirectParam && redirectParam !== '/login' && redirectParam !== '/signup'
                 ? redirectParam
                 : '/dashboard';
+
             return { component: undefined, href: target };
         }
         const route = _getEmptyRoute();
+
         route.component = SignUpPage;
+
         return route;
     }
 
@@ -82,78 +92,113 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
             };
         }
         const route = _getEmptyRoute();
+
         route.component = DashboardPage;
+
         return route;
     }
 
     // 5. Root / landing route: / and /test
     if (pathname === '/' || pathname === '/test') {
         const route = _getEmptyRoute();
+
         route.component = isUserAuth ? DashboardPage : LandingPage;
+
         return route;
     }
 
-    // 6. Meeting Route (any other path, e.g. /my-meeting or /7tk-wk1-x3t)
-    const room = state['features/base/conference'].room
-        || pathname.replace(/^\/+/, '').split('/')[0];
+    // 6. Meeting Route (any other path, e.g. /jd0-fmc-29f)
+    const publicRoomId = pathname.replace(/^\/+/, '').split('/')[0] || state['features/base/conference'].room || '';
+    const reduxRoom = state['features/base/conference'].room;
 
-    if (isRoomValid(room) && room) {
+    if (isRoomValid(publicRoomId) && publicRoomId) {
         const currentJwt = state['features/base/jwt']?.jwt;
+        const activeSession = getActiveMeetingSession(state);
 
-        // Already authorized with a valid Jitsi JWT (e.g. just unlocked from MeetingWaitingRoom)
-        if (currentJwt) {
+        // Already authorized with a valid Jitsi JWT + isolated occurrence session room -> enter Conference!
+        if (currentJwt && activeSession && activeSession.publicRoomId === publicRoomId) {
             return _getWebConferenceRoute(state);
         }
 
         const accessToken = getAccessToken(state);
 
-        // Step A: Inspect public meeting status BEFORE forcing login or connecting to Jitsi.
-        // Shows Zoom-style "Waiting for the host to start this meeting" screen for scheduled meetings.
+        // Step A: Backend-authoritative meeting resolution BEFORE connecting to Jitsi.
+        // Never allows creating a conference or taking over host by opening a link.
         try {
-            const publicInfo = await authApiClient.getPublicMeetingInfo(room, accessToken);
+            const publicInfo = await authApiClient.getPublicMeetingInfo(publicRoomId, accessToken);
+            const resStatus = publicInfo.resolutionStatus || (publicInfo.exists ? publicInfo.status : 'not_found');
 
-            if (publicInfo.exists) {
-                if (publicInfo.status === 'cancelled' || publicInfo.status === 'ended') {
+            if (
+                !publicInfo.exists
+                || resStatus === 'not_found'
+                || resStatus === 'cancelled'
+                || resStatus === 'expired'
+                || resStatus === 'ended'
+            ) {
+                const route = _getEmptyRoute();
+
+                route.component = MeetingWaitingRoom;
+
+                return route;
+            }
+
+            if (resStatus === 'waiting_for_host') {
+                if (publicInfo.isHost || !publicInfo.canJoinBeforeHostNow) {
                     const route = _getEmptyRoute();
+
                     route.component = MeetingWaitingRoom;
+
                     return route;
-                }
-
-                if (publicInfo.isScheduled && publicInfo.status === 'scheduled') {
-                    if (!publicInfo.isOwner && publicInfo.joinBeforeHost === false) {
-                        const route = _getEmptyRoute();
-                        route.component = MeetingWaitingRoom;
-                        return route;
-                    }
-
-                    if (publicInfo.isOwner) {
-                        const route = _getEmptyRoute();
-                        route.component = MeetingWaitingRoom;
-                        return route;
-                    }
                 }
             }
         } catch (publicErr) {
-            logger.warn('Failed to fetch public meeting info, falling back to auth gate', publicErr);
-        }
-
-        // Step B: Unauthenticated guests join existing meetings via the Zoom-style Guest Join / Waiting screen
-        // (No account required unless the host explicitly enabled "Require Faceonn Authentication"!)
-        if (!isUserAuth) {
+            logger.warn('Failed to resolve public meeting status; gating in waiting room', publicErr);
             const route = _getEmptyRoute();
+
             route.component = MeetingWaitingRoom;
+
             return route;
         }
 
-        // Step C: Authorize with backend and ensure Jitsi JWT is set before connecting
+        // Step B: Unauthenticated guests join existing meetings via the Zoom-style Guest Join / Waiting screen
+        if (!isUserAuth) {
+            const route = _getEmptyRoute();
+
+            route.component = MeetingWaitingRoom;
+
+            return route;
+        }
+
+        // Step C: Authorize authenticated user with backend and bind isolated occurrence Jitsi room
         if (dispatch && accessToken) {
             try {
                 const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
                 const passcode = urlParams?.get('passcode') || undefined;
-                const data = await authApiClient.getMeetingToken(room, accessToken, passcode, {
+                const data = await authApiClient.getMeetingToken(publicRoomId, accessToken, passcode, {
                     allowHostAutoStart: false
                 });
+                const jitsiRoomName = data.session?.jitsiRoomName || data.meeting.roomId;
+
+                dispatch(setActiveMeetingSession({
+                    meetingId: data.meeting.id,
+                    publicRoomId: data.meeting.roomId,
+                    jitsiRoomName,
+                    occurrenceId: data.occurrence?.id || '',
+                    sessionId: data.session?.id || '',
+                    title: data.meeting.title,
+                    role: data.role,
+                    isHost: data.role === 'owner' || data.role === 'moderator',
+                    isOwner: data.role === 'owner',
+                    isRecurring: data.meeting.meetingType === 'recurring'
+                }));
                 dispatch(setJWT(data.token));
+
+                if (jitsiRoomName !== reduxRoom) {
+                    // Updating Redux room triggers _setRoom -> _navigate with isolated Jitsi room!
+                    dispatch(setRoom(jitsiRoomName));
+
+                    return _getEmptyRoute();
+                }
             } catch (err: any) {
                 logger.warn('Meeting access gated by backend policy:', err.code, err.message);
 
@@ -164,13 +209,18 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
                     || err.code === 'INVALID_PASSCODE'
                     || err.code === 'MEETING_CANCELLED'
                     || err.code === 'MEETING_ENDED'
+                    || err.code === 'MEETING_EXPIRED'
+                    || err.code === 'MEETING_NOT_FOUND'
                 ) {
                     const route = _getEmptyRoute();
+
                     route.component = MeetingWaitingRoom;
+
                     return route;
                 }
 
                 const errorMsg = err.message || 'Failed to authorize meeting';
+
                 return {
                     component: undefined,
                     href: `/dashboard?error=${encodeURIComponent(errorMsg)}`
@@ -204,6 +254,7 @@ function _getWebConferenceRoute(state: IReduxState): Promise<any> | undefined {
 
     if (window.location.href !== locationURL?.href) {
         route.href = locationURL?.href;
+
         return Promise.resolve(route);
     }
 
@@ -244,6 +295,7 @@ function _getWebWelcomePageRoute(state: IReduxState) {
         }
     } else {
         const url = new URL(window.location.href);
+
         url.pathname += generateRoomWithoutSeparator();
         route.href = url.href;
     }

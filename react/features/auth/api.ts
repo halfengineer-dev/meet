@@ -2,6 +2,8 @@ import { API_BASE_URL } from './constants';
 import {
     IUser,
     IMeeting,
+    IMeetingOccurrence,
+    IMeetingSessionInfo,
     IScheduleMeetingDTO,
     IUpdateMeetingDTO,
     IScheduleMeetingResponse,
@@ -171,10 +173,91 @@ export class AuthApiClient {
 
     public async startMeeting(
         meetingId: string,
-        accessToken: string
-    ): Promise<{ meeting: IMeeting; token: string }> {
-        return this.request<{ meeting: IMeeting; token: string }>(`/api/meetings/${encodeURIComponent(meetingId)}/start`, {
+        accessToken: string,
+        occurrenceId?: string
+    ): Promise<{
+        meeting: IMeeting;
+        occurrence?: IMeetingOccurrence;
+        session?: IMeetingSessionInfo;
+        token: string;
+        role?: 'owner' | 'moderator';
+    }> {
+        const endpoint = occurrenceId
+            ? `/api/meetings/${encodeURIComponent(meetingId)}/occurrences/${encodeURIComponent(occurrenceId)}/start`
+            : `/api/meetings/${encodeURIComponent(meetingId)}/start`;
+        return this.request(endpoint, {
             method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: occurrenceId ? JSON.stringify({ occurrenceId }) : undefined
+        });
+    }
+
+    public async getOccurrences(
+        meetingId: string,
+        accessToken: string
+    ): Promise<{ occurrences: IMeetingOccurrence[] }> {
+        return this.request(`/api/meetings/${encodeURIComponent(meetingId)}/occurrences`, {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async cancelOccurrence(
+        meetingId: string,
+        occurrenceId: string,
+        accessToken: string
+    ): Promise<{ occurrence: IMeetingOccurrence }> {
+        return this.request(
+            `/api/meetings/${encodeURIComponent(meetingId)}/occurrences/${encodeURIComponent(occurrenceId)}/cancel`,
+            {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            }
+        );
+    }
+
+    public async endOccurrence(
+        meetingId: string,
+        accessToken: string,
+        occurrenceId?: string
+    ): Promise<{
+        meeting: IMeeting;
+        endedOccurrence: IMeetingOccurrence | null;
+        nextOccurrence: IMeetingOccurrence | null;
+    }> {
+        return this.request(`/api/meetings/${encodeURIComponent(meetingId)}/end-occurrence`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify(occurrenceId ? { occurrenceId } : {})
+        });
+    }
+
+    public async endSeries(
+        meetingId: string,
+        accessToken: string
+    ): Promise<{ meeting: IMeeting }> {
+        return this.request(`/api/meetings/${encodeURIComponent(meetingId)}/end-series`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async searchUsers(
+        query: string,
+        accessToken: string
+    ): Promise<{ users: Array<{ id: string; name: string | null; email: string }> }> {
+        return this.request(`/api/meetings/users/search?q=${encodeURIComponent(query)}`, {
+            method: 'GET',
             headers: {
                 Authorization: `Bearer ${accessToken}`
             }
@@ -239,6 +322,8 @@ export class AuthApiClient {
         passcode?: string
     ): Promise<{
         meeting: IMeeting;
+        occurrence?: IMeetingOccurrence;
+        session?: IMeetingSessionInfo;
         token: string;
         role: 'participant';
         displayName: string;
@@ -256,9 +341,11 @@ export class AuthApiClient {
         roomId: string,
         accessToken: string,
         passcode?: string,
-        options?: { allowHostAutoStart?: boolean }
+        options?: { allowHostAutoStart?: boolean; occurrenceId?: string }
     ): Promise<{
         meeting: IMeeting;
+        occurrence?: IMeetingOccurrence;
+        session?: IMeetingSessionInfo;
         token: string;
         role: 'owner' | 'moderator' | 'participant';
     }> {
@@ -268,6 +355,9 @@ export class AuthApiClient {
         }
         if (options?.allowHostAutoStart === false) {
             params.set('autoStart', 'false');
+        }
+        if (options?.occurrenceId) {
+            params.set('occurrenceId', options.occurrenceId);
         }
         const query = params.toString();
         const url = `/api/meetings/${encodeURIComponent(roomId)}/token${query ? `?${query}` : ''}`;

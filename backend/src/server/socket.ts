@@ -3,6 +3,8 @@ import { Server as HttpServer } from 'http';
 import { registerSignalingHandlers } from '../signaling/handler';
 import { verifyAccessToken } from '../auth/tokens';
 import { userRepository } from '../db/repositories/user-repository';
+import { meetingRepository } from '../db/repositories/meeting-repository';
+import { meetingEventBus } from '../meetings/meeting-events';
 import { UserRecord } from '../db/types';
 
 export interface AuthenticatedSocket extends Socket {
@@ -45,6 +47,23 @@ export function createSocketServer(httpServer: HttpServer) {
     } catch (err: any) {
       next(new Error(`Authentication error: ${err.message || 'Invalid token'}`));
     }
+  });
+
+  meetingEventBus.attachSocketServer(io);
+
+  io.on('connection', (socket) => {
+    socket.on('meeting:subscribe', async (roomId: string) => {
+      if (!roomId || typeof roomId !== 'string') return;
+      const normalized = roomId.toLowerCase().trim();
+      const meeting = await meetingRepository.findByRoomId(normalized);
+      if (!meeting || meeting.series_status === 'cancelled') return;
+      socket.join(`meeting-lifecycle:${normalized}`);
+    });
+
+    socket.on('meeting:unsubscribe', (roomId: string) => {
+      if (!roomId || typeof roomId !== 'string') return;
+      socket.leave(`meeting-lifecycle:${roomId.toLowerCase().trim()}`);
+    });
   });
 
   registerSignalingHandlers(io);

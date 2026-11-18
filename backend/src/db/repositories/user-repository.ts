@@ -106,6 +106,49 @@ class UserRepository {
     }
   }
 
+  public async searchUsers(query: string, excludeUserId?: string, limit = 10): Promise<Array<{ id: string; name: string | null; email: string }>> {
+    const q = (query || '').trim().toLowerCase();
+    if (q.length < 2) return [];
+
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const pattern = `%${q}%`;
+      const res = excludeUserId
+        ? await pool.query(
+            `SELECT id, name, email FROM users
+             WHERE status = 'active'
+               AND id <> $1
+               AND (LOWER(email) LIKE $2 OR LOWER(COALESCE(name, '')) LIKE $2)
+             ORDER BY name ASC NULLS LAST
+             LIMIT $3`,
+            [excludeUserId, pattern, limit]
+          )
+        : await pool.query(
+            `SELECT id, name, email FROM users
+             WHERE status = 'active'
+               AND (LOWER(email) LIKE $1 OR LOWER(COALESCE(name, '')) LIKE $1)
+             ORDER BY name ASC NULLS LAST
+             LIMIT $2`,
+            [pattern, limit]
+          );
+      return res.rows;
+    }
+
+    const matches: Array<{ id: string; name: string | null; email: string }> = [];
+    for (const user of this.inMemoryUsers.values()) {
+      if (user.status !== 'active') continue;
+      if (excludeUserId && user.id === excludeUserId) continue;
+      if (
+        user.email.toLowerCase().includes(q) ||
+        (user.name && user.name.toLowerCase().includes(q))
+      ) {
+        matches.push({ id: user.id, name: user.name, email: user.email });
+        if (matches.length >= limit) break;
+      }
+    }
+    return matches;
+  }
+
   public async clearAll(): Promise<void> {
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;

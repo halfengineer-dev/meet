@@ -1185,18 +1185,19 @@
 .new-meeting-dropdown-wrap {
     position: relative;
     display: inline-block;
+    z-index: 40;
 }
 
 .new-meeting-menu {
     position: absolute;
-    top: calc(100% + 6px);
+    top: calc(100% + 8px);
     left: 0;
-    min-width: 250px;
+    min-width: 260px;
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
-    z-index: 100;
+    border-radius: 14px;
+    box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+    z-index: 500;
     overflow: hidden;
     animation: testFadeIn 0.15s ease-out;
 
@@ -1823,6 +1824,216 @@
 
     .waiting-details-box .waiting-details-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Alternative Hosts Search Dropdown */
+.alt-host-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+    z-index: 60;
+    max-height: 220px;
+    overflow-y: auto;
+
+    .alt-host-dropdown-empty {
+        padding: 12px 16px;
+        font-size: 13px;
+        color: #64748b;
+    }
+
+    .alt-host-option {
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 2px !important;
+        padding: 10px 14px !important;
+        border: none !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        background: transparent !important;
+        color: #0f172a !important;
+        text-align: left !important;
+        cursor: pointer !important;
+
+        &:hover {
+            background: #f8fafc !important;
+        }
+
+        strong {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #0f172a;
+        }
+
+        span {
+            font-size: 12px;
+            color: #64748b;
+        }
+    }
+}
+
+/* Occurrences Timeline in Meeting Details */
+.occurrences-timeline-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.occurrence-row-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    flex-wrap: wrap;
+
+    .occurrence-row-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .occurrence-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: 8px;
+        background: #e0f2fe;
+        color: #0369a1;
+        font-size: 12px;
+        font-weight: 800;
+    }
+
+    .occurrence-date {
+        font-size: 13.5px;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 3px;
+    }
+
+    .occurrence-row-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+}
+
+.occurrence-status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+
+    &.active {
+        background: #dcfce7;
+        color: #15803d;
+    }
+
+    &.scheduled,
+    &.waiting_for_host {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+
+    &.ended {
+        background: #f1f5f9;
+        color: #475569;
+    }
+
+    &.cancelled {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+
+    &.missed {
+        background: #fef3c7;
+        color: #b45309;
+    }
+}
+
+/* End Meeting Confirmation Dialog inside Conference */
+.faceonn-end-dialog-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 0;
+}
+
+.faceonn-end-dialog-desc {
+    margin: 0;
+    font-size: 14px;
+    color: #cbd5e1;
+    line-height: 1.5;
+}
+
+.faceonn-end-dialog-error {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.faceonn-end-dialog-option {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 4px !important;
+    width: 100% !important;
+    padding: 14px 16px !important;
+    border-radius: 10px !important;
+    color: #ffffff !important;
+    cursor: pointer !important;
+    text-align: left !important;
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed !important;
+    }
+
+    strong {
+        font-size: 14px;
+    }
+
+    span {
+        font-size: 12.5px;
+        line-height: 1.4;
+    }
+
+    &.primary {
+        border: 1px solid rgba(56, 189, 248, 0.45) !important;
+        background: rgba(2, 132, 199, 0.22) !important;
+
+        span {
+            color: #cbd5e1;
+        }
+    }
+
+    &.danger {
+        border: 1px solid rgba(239, 68, 68, 0.5) !important;
+        background: rgba(220, 38, 38, 0.24) !important;
+
+        strong,
+        span {
+            color: #fecaca;
+        }
     }
 }
 

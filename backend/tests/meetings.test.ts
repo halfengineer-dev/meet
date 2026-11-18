@@ -5,6 +5,8 @@ import { createHttpServer } from '../src/server/http';
 import { userRepository } from '../src/db/repositories/user-repository';
 import { sessionRepository } from '../src/db/repositories/session-repository';
 import { meetingRepository } from '../src/db/repositories/meeting-repository';
+import { occurrenceRepository } from '../src/db/repositories/occurrence-repository';
+import { meetingSessionRepository } from '../src/db/repositories/meeting-session-repository';
 
 describe('Meeting Authorization API', () => {
   const app = createHttpServer();
@@ -13,6 +15,8 @@ describe('Meeting Authorization API', () => {
   let userB: { token: string; id: string; email: string };
 
   beforeEach(async () => {
+    await meetingSessionRepository.clearAll();
+    await occurrenceRepository.clearAll();
     await meetingRepository.clearAll();
     await sessionRepository.clearAll();
     await userRepository.clearAll();
@@ -69,9 +73,10 @@ describe('Meeting Authorization API', () => {
       expect(res.body.role).toBe('owner');
       expect(res.body.token).toBeDefined();
 
-      // Inspect decoded Jitsi JWT token
+      // Inspect decoded Jitsi JWT token (scoped to isolated session room!)
       const decoded: any = jwt.decode(res.body.token);
-      expect(decoded.room).toBe(res.body.meeting.roomId);
+      expect(res.body.session.jitsiRoomName).toContain(res.body.meeting.roomId);
+      expect(decoded.room).toBe(res.body.session.jitsiRoomName);
       expect(decoded.context.user.id).toBe(userA.id);
       expect(decoded.context.user.moderator).toBe(true); // Host is moderator!
     });

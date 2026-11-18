@@ -79,14 +79,37 @@ export default function MeetingDetailsView({
         downloadIcsFile(details.meeting, null, window.location.origin);
     };
 
-    const handleStartMeeting = async () => {
+    const handleStartMeeting = async (occurrenceId?: string) => {
         if (!details || !accessToken) return;
         try {
-            if (details.isOwner) {
-                await authApiClient.startMeeting(details.meeting.id, accessToken);
+            if (details.isOwner || details.isHost) {
+                await authApiClient.startMeeting(details.meeting.id, accessToken, occurrenceId);
             }
-        } catch (_) {}
+        } catch (err: any) {
+            alert(err.message || 'Failed to start meeting');
+            return;
+        }
         window.location.href = `/${details.meeting.roomId}`;
+    };
+
+    const handleEndActiveOccurrence = async () => {
+        if (!details || !accessToken) return;
+        try {
+            await authApiClient.endOccurrence(details.meeting.id, accessToken);
+            loadDetails();
+        } catch (err: any) {
+            alert(err.message || 'Failed to end active occurrence');
+        }
+    };
+
+    const handleCancelSingleOccurrence = async (occurrenceId: string) => {
+        if (!details || !accessToken) return;
+        try {
+            await authApiClient.cancelOccurrence(details.meeting.id, occurrenceId, accessToken);
+            loadDetails();
+        } catch (err: any) {
+            alert(err.message || 'Failed to cancel occurrence');
+        }
     };
 
     const handleConfirmCancel = async () => {
@@ -164,9 +187,10 @@ export default function MeetingDetailsView({
         );
     }
 
-    const { meeting, invitees, isOwner } = details;
+    const { meeting, invitees, isOwner, isHost, occurrences = [], nextOccurrence, alternativeHosts = [], recurrenceSummary } = details;
+    const canHost = Boolean(isOwner || isHost);
     const roomUrl = `${window.location.origin}/${meeting.roomId}`;
-    const relativeTime = getRelativeMeetingTime(meeting.scheduledAt, meeting.timezone);
+    const relativeTime = getRelativeMeetingTime(nextOccurrence?.scheduledAt || meeting.scheduledAt, meeting.timezone);
 
     return (
         <div className="faceonn-schedule-container">
@@ -194,12 +218,23 @@ export default function MeetingDetailsView({
                     </div>
 
                     <div className="details-header-actions">
-                        {meeting.status !== 'cancelled' && (
+                        {meeting.status !== 'cancelled' && meeting.status !== 'ended' && (
                             <button
                                 type="button"
                                 className="schedule-btn-action blue"
-                                onClick={handleStartMeeting}>
-                                {isOwner ? 'Start Meeting →' : 'Join Meeting →'}
+                                onClick={() => handleStartMeeting(nextOccurrence?.id)}>
+                                {canHost
+                                    ? (meeting.status === 'active' ? 'Rejoin Meeting →' : 'Start Meeting →')
+                                    : 'Join Meeting →'}
+                            </button>
+                        )}
+
+                        {canHost && meeting.status === 'active' && (
+                            <button
+                                type="button"
+                                className="schedule-btn-danger"
+                                onClick={handleEndActiveOccurrence}>
+                                End Current Session
                             </button>
                         )}
 
@@ -289,14 +324,96 @@ export default function MeetingDetailsView({
                                 </div>
                             )}
 
-                            {meeting.recurrenceRule && (
+                            {(recurrenceSummary || meeting.recurrenceRule) && (
                                 <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
                                     <label>Recurrence</label>
-                                    <span>Repeating series: {meeting.recurrenceRule}</span>
+                                    <span>🔁 {recurrenceSummary || meeting.recurrenceRule}</span>
+                                </div>
+                            )}
+
+                            {nextOccurrence && meeting.meetingType === 'recurring' && (
+                                <div className="detail-item" style={{ gridColumn: '1 / -1' }}>
+                                    <label>Next Occurrence</label>
+                                    <span>
+                                        #{nextOccurrence.occurrenceNumber} •{' '}
+                                        {new Date(nextOccurrence.scheduledAt).toLocaleString('en-US', {
+                                            weekday: 'long',
+                                            month: 'short',
+                                            day: 'numeric',
+                                            year: 'numeric',
+                                            hour: 'numeric',
+                                            minute: '2-digit',
+                                            timeZoneName: 'short'
+                                        })}
+                                    </span>
                                 </div>
                             )}
                         </div>
                     </div>
+
+                    {/* Recurring Occurrences Timeline */}
+                    {meeting.meetingType === 'recurring' && occurrences.length > 0 && (
+                        <div className="schedule-card-section">
+                            <h3>Scheduled Occurrences ({occurrences.length})</h3>
+                            <div className="occurrences-timeline-list">
+                                {occurrences.slice(0, 12).map((occ) => (
+                                    <div key={occ.id} className="occurrence-row-item">
+                                        <div className="occurrence-row-left">
+                                            <span className="occurrence-num">#{occ.occurrenceNumber}</span>
+                                            <div>
+                                                <div className="occurrence-date">
+                                                    {new Date(occ.scheduledAt).toLocaleString('en-US', {
+                                                        weekday: 'short',
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                        year: 'numeric',
+                                                        hour: 'numeric',
+                                                        minute: '2-digit'
+                                                    })}
+                                                </div>
+                                                <span className={`occurrence-status-badge ${occ.status}`}>
+                                                    {occ.status.replace('_', ' ').toUpperCase()}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {canHost && (occ.status === 'scheduled' || occ.status === 'waiting_for_host' || occ.status === 'active') && (
+                                            <div className="occurrence-row-actions">
+                                                <button
+                                                    type="button"
+                                                    className="schedule-btn-action blue"
+                                                    onClick={() => handleStartMeeting(occ.id)}>
+                                                    {occ.status === 'active' ? 'Rejoin' : 'Start'}
+                                                </button>
+                                                {occ.status !== 'active' && (
+                                                    <button
+                                                        type="button"
+                                                        className="schedule-btn-danger"
+                                                        onClick={() => handleCancelSingleOccurrence(occ.id)}>
+                                                        Cancel
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Alternative Hosts */}
+                    {alternativeHosts.length > 0 && (
+                        <div className="schedule-card-section">
+                            <h3>Alternative Hosts ({alternativeHosts.length})</h3>
+                            <div className="invitees-chips-list" style={{ marginTop: '10px' }}>
+                                {alternativeHosts.map(ah => (
+                                    <div key={ah.userId} className="invitee-chip">
+                                        <span className="invitee-chip-email">👑 {ah.name || ah.email} ({ah.email})</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Security & Configured Settings */}
                     <div className="schedule-card-section">

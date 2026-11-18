@@ -41,16 +41,19 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
 
     // Section B: Recurrence
     const [isRecurring, setIsRecurring] = useState(false);
-    const [recurrenceFreq, setRecurrenceFreq] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+    const [recurrenceFreq, setRecurrenceFreq] = useState<'daily' | 'weekdays' | 'weekly' | 'monthly'>('weekly');
     const [recurrenceInterval, setRecurrenceInterval] = useState(1);
     const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([1]); // Monday default
-    const [recurrenceEndType, setRecurrenceEndType] = useState<'date' | 'count'>('date');
+    const [monthlyMode, setMonthlyMode] = useState<'day_of_month' | 'nth_weekday'>('day_of_month');
+    const [monthlyWeek, setMonthlyWeek] = useState<number>(1); // 1=1st, 2=2nd, 3=3rd, 4=4th, -1=Last
+    const [monthlyWeekday, setMonthlyWeekday] = useState<number>(1); // Monday
+    const [recurrenceEndType, setRecurrenceEndType] = useState<'never' | 'date' | 'count'>('date');
     const [recurrenceEndDate, setRecurrenceEndDate] = useState(() => {
         const d = new Date();
         d.setMonth(d.getMonth() + 1);
         return d.toISOString().split('T')[0];
     });
-    const [recurrenceCount, setRecurrenceCount] = useState(5);
+    const [recurrenceCount, setRecurrenceCount] = useState(10);
 
     // Section C: Meeting ID & Security
     const [usePmi, setUsePmi] = useState(false);
@@ -66,15 +69,24 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
     const [showPasscode, setShowPasscode] = useState(false);
     const [waitingRoomEnabled, setWaitingRoomEnabled] = useState(true);
     const [joinBeforeHost, setJoinBeforeHost] = useState(false);
+    const [joinBeforeHostMinutes, setJoinBeforeHostMinutes] = useState(0);
     const [requireAuthentication, setRequireAuthentication] = useState(false);
 
     // Section D: Video, Audio & Permissions
     const [hostVideoEnabled, setHostVideoEnabled] = useState(true);
     const [participantVideoEnabled, setParticipantVideoEnabled] = useState(true);
     const [muteOnEntry, setMuteOnEntry] = useState(true);
+    const [allowParticipantsUnmute, setAllowParticipantsUnmute] = useState(true);
     const [allowScreenSharing, setAllowScreenSharing] = useState(true);
     const [allowChat, setAllowChat] = useState(true);
     const [allowReactions, setAllowReactions] = useState(true);
+    const [allowRecording, setAllowRecording] = useState(false);
+
+    // Alternative Hosts (verified Faceonn users)
+    const [altHostQuery, setAltHostQuery] = useState('');
+    const [altHostResults, setAltHostResults] = useState<Array<{ id: string; name: string | null; email: string }>>([]);
+    const [altHosts, setAltHosts] = useState<Array<{ id: string; name: string | null; email: string }>>([]);
+    const [searchingAltHosts, setSearchingAltHosts] = useState(false);
 
     // Section E: Invitations
     const [inviteEmailInput, setInviteEmailInput] = useState('');
@@ -127,6 +139,36 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
         setPasscode(res);
     };
 
+    const handleSearchAltHosts = async (q: string) => {
+        setAltHostQuery(q);
+        if (!accessToken || q.trim().length < 2) {
+            setAltHostResults([]);
+            return;
+        }
+        setSearchingAltHosts(true);
+        try {
+            const res = await authApiClient.searchUsers(q.trim(), accessToken);
+            const selectedIds = new Set(altHosts.map(h => h.id));
+            setAltHostResults((res.users || []).filter(u => !selectedIds.has(u.id)));
+        } catch (_) {
+            setAltHostResults([]);
+        } finally {
+            setSearchingAltHosts(false);
+        }
+    };
+
+    const handleAddAltHost = (u: { id: string; name: string | null; email: string }) => {
+        if (!altHosts.some(h => h.id === u.id)) {
+            setAltHosts([...altHosts, u]);
+        }
+        setAltHostQuery('');
+        setAltHostResults([]);
+    };
+
+    const handleRemoveAltHost = (userId: string) => {
+        setAltHosts(altHosts.filter(h => h.id !== userId));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -160,22 +202,30 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
                     passcode: passcodeEnabled ? passcode : undefined,
                     waitingRoomEnabled,
                     joinBeforeHost,
+                    joinBeforeHostMinutes: joinBeforeHost ? joinBeforeHostMinutes : 0,
                     hostVideoEnabled,
                     participantVideoEnabled,
                     muteOnEntry,
+                    allowParticipantsUnmute,
                     allowScreenSharing,
                     allowChat,
                     allowReactions,
-                    requireAuthentication
+                    allowRecording,
+                    requireAuthentication,
+                    audioType: 'computer'
                 },
-                invitees: invitees.length > 0 ? invitees : undefined
+                invitees: invitees.length > 0 ? invitees : undefined,
+                alternativeHostIds: altHosts.length > 0 ? altHosts.map(h => h.id) : undefined
             };
 
             if (isRecurring) {
                 payload.recurrence = {
                     frequency: recurrenceFreq,
-                    interval: recurrenceInterval,
+                    interval: recurrenceFreq === 'weekdays' ? 1 : recurrenceInterval,
                     weekdays: recurrenceFreq === 'weekly' ? selectedWeekdays : undefined,
+                    monthlyMode: recurrenceFreq === 'monthly' ? monthlyMode : undefined,
+                    monthlyWeek: recurrenceFreq === 'monthly' && monthlyMode === 'nth_weekday' ? monthlyWeek : undefined,
+                    monthlyWeekday: recurrenceFreq === 'monthly' && monthlyMode === 'nth_weekday' ? monthlyWeekday : undefined,
                     endDate: recurrenceEndType === 'date' ? recurrenceEndDate : undefined,
                     occurrenceCount: recurrenceEndType === 'count' ? recurrenceCount : undefined
                 };
@@ -368,30 +418,33 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
                                             value={recurrenceFreq}
                                             onChange={e => setRecurrenceFreq(e.target.value as any)}>
                                             <option value="daily">Daily</option>
+                                            <option value="weekdays">Every Weekday (Mon–Fri)</option>
                                             <option value="weekly">Weekly</option>
                                             <option value="monthly">Monthly</option>
                                         </select>
                                     </div>
 
-                                    <div className="schedule-input-group">
-                                        <label>Repeat Every</label>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <input
-                                                type="number"
-                                                className="schedule-input-text"
-                                                min={1}
-                                                max={12}
-                                                value={recurrenceInterval}
-                                                onChange={e => setRecurrenceInterval(Number(e.target.value))} />
-                                            <span style={{ fontSize: '13px', color: '#64748b' }}>
-                                                {recurrenceFreq === 'daily'
-                                                    ? 'day(s)'
-                                                    : recurrenceFreq === 'weekly'
-                                                    ? 'week(s)'
-                                                    : 'month(s)'}
-                                            </span>
+                                    {recurrenceFreq !== 'weekdays' && (
+                                        <div className="schedule-input-group">
+                                            <label>Repeat Every</label>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <input
+                                                    type="number"
+                                                    className="schedule-input-text"
+                                                    min={1}
+                                                    max={12}
+                                                    value={recurrenceInterval}
+                                                    onChange={e => setRecurrenceInterval(Number(e.target.value))} />
+                                                <span style={{ fontSize: '13px', color: '#64748b' }}>
+                                                    {recurrenceFreq === 'daily'
+                                                        ? 'day(s)'
+                                                        : recurrenceFreq === 'weekly'
+                                                        ? 'week(s)'
+                                                        : 'month(s)'}
+                                                </span>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
 
                                 {recurrenceFreq === 'weekly' && (
@@ -413,6 +466,51 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
                                     </div>
                                 )}
 
+                                {recurrenceFreq === 'monthly' && (
+                                    <div className="schedule-grid-2" style={{ marginTop: '14px' }}>
+                                        <div className="schedule-input-group">
+                                            <label>Monthly Pattern</label>
+                                            <select
+                                                className="schedule-input-select"
+                                                value={monthlyMode}
+                                                onChange={e => setMonthlyMode(e.target.value as any)}>
+                                                <option value="day_of_month">Same calendar date each month</option>
+                                                <option value="nth_weekday">Specific weekday (e.g. 1st Monday)</option>
+                                            </select>
+                                        </div>
+
+                                        {monthlyMode === 'nth_weekday' && (
+                                            <div className="schedule-input-group">
+                                                <label>Weekday Occurrence</label>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <select
+                                                        className="schedule-input-select"
+                                                        value={monthlyWeek}
+                                                        onChange={e => setMonthlyWeek(Number(e.target.value))}>
+                                                        <option value={1}>First</option>
+                                                        <option value={2}>Second</option>
+                                                        <option value={3}>Third</option>
+                                                        <option value={4}>Fourth</option>
+                                                        <option value={-1}>Last</option>
+                                                    </select>
+                                                    <select
+                                                        className="schedule-input-select"
+                                                        value={monthlyWeekday}
+                                                        onChange={e => setMonthlyWeekday(Number(e.target.value))}>
+                                                        <option value={1}>Monday</option>
+                                                        <option value={2}>Tuesday</option>
+                                                        <option value={3}>Wednesday</option>
+                                                        <option value={4}>Thursday</option>
+                                                        <option value={5}>Friday</option>
+                                                        <option value={6}>Saturday</option>
+                                                        <option value={0}>Sunday</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className="schedule-grid-2" style={{ marginTop: '14px' }}>
                                     <div className="schedule-input-group">
                                         <label>End Recurrence</label>
@@ -422,33 +520,36 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
                                             onChange={e => setRecurrenceEndType(e.target.value as any)}>
                                             <option value="date">By Date</option>
                                             <option value="count">After Occurrences</option>
+                                            <option value="never">Never (Rolling 90-day window)</option>
                                         </select>
                                     </div>
 
-                                    <div className="schedule-input-group">
-                                        {recurrenceEndType === 'date' ? (
-                                            <>
-                                                <label>End Date</label>
-                                                <input
-                                                    type="date"
-                                                    className="schedule-input-text"
-                                                    value={recurrenceEndDate}
-                                                    min={date}
-                                                    onChange={e => setRecurrenceEndDate(e.target.value)} />
-                                            </>
-                                        ) : (
-                                            <>
-                                                <label>Number of occurrences</label>
-                                                <input
-                                                    type="number"
-                                                    className="schedule-input-text"
-                                                    min={1}
-                                                    max={50}
-                                                    value={recurrenceCount}
-                                                    onChange={e => setRecurrenceCount(Number(e.target.value))} />
-                                            </>
-                                        )}
-                                    </div>
+                                    {recurrenceEndType !== 'never' && (
+                                        <div className="schedule-input-group">
+                                            {recurrenceEndType === 'date' ? (
+                                                <>
+                                                    <label>End Date</label>
+                                                    <input
+                                                        type="date"
+                                                        className="schedule-input-text"
+                                                        value={recurrenceEndDate}
+                                                        min={date}
+                                                        onChange={e => setRecurrenceEndDate(e.target.value)} />
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <label>Number of occurrences</label>
+                                                    <input
+                                                        type="number"
+                                                        className="schedule-input-text"
+                                                        min={1}
+                                                        max={90}
+                                                        value={recurrenceCount}
+                                                        onChange={e => setRecurrenceCount(Number(e.target.value))} />
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -543,7 +644,7 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
                         <div className="schedule-switch-row">
                             <div className="switch-info">
                                 <strong>Allow Participants to Join Before Host</strong>
-                                <span>If disabled, participants cannot enter until the host starts the room.</span>
+                                <span>If disabled, participants wait in the Waiting for Host screen until you start.</span>
                             </div>
                             <label className="faceonn-switch">
                                 <input
@@ -553,6 +654,21 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
                                 <span className="slider round" />
                             </label>
                         </div>
+
+                        {joinBeforeHost && (
+                            <div className="schedule-input-group" style={{ marginBottom: '14px', paddingLeft: '12px', borderLeft: '3px solid #0284c7' }}>
+                                <label>Allow participants to join before start time</label>
+                                <select
+                                    className="schedule-input-select"
+                                    value={joinBeforeHostMinutes}
+                                    onChange={e => setJoinBeforeHostMinutes(Number(e.target.value))}>
+                                    <option value={0}>Anytime</option>
+                                    <option value={5}>5 minutes before start time</option>
+                                    <option value={10}>10 minutes before start time</option>
+                                    <option value={15}>15 minutes before start time</option>
+                                </select>
+                            </div>
+                        )}
 
                         {/* Require Authentication */}
                         <div className="schedule-switch-row">
@@ -637,6 +753,34 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
 
                         <div className="schedule-switch-row">
                             <div className="switch-info">
+                                <strong>Allow Participants to Unmute Themselves</strong>
+                                <span>Participants can unmute their own microphone during the meeting.</span>
+                            </div>
+                            <label className="faceonn-switch">
+                                <input
+                                    type="checkbox"
+                                    checked={allowParticipantsUnmute}
+                                    onChange={e => setAllowParticipantsUnmute(e.target.checked)} />
+                                <span className="slider round" />
+                            </label>
+                        </div>
+
+                        <div className="schedule-switch-row">
+                            <div className="switch-info">
+                                <strong>Allow Recording</strong>
+                                <span>Permit recording during this meeting when supported.</span>
+                            </div>
+                            <label className="faceonn-switch">
+                                <input
+                                    type="checkbox"
+                                    checked={allowRecording}
+                                    onChange={e => setAllowRecording(e.target.checked)} />
+                                <span className="slider round" />
+                            </label>
+                        </div>
+
+                        <div className="schedule-switch-row">
+                            <div className="switch-info">
                                 <strong>Allow In-Meeting Chat & Reactions</strong>
                                 <span>Enable group chat and interactive emoji reactions.</span>
                             </div>
@@ -653,10 +797,65 @@ export default function ScheduleMeetingView({ onBack, onScheduled }: ScheduleMee
                         </div>
                     </div>
 
-                    {/* Section 5: Invite Participants */}
+                    {/* Section 5: Alternative Hosts */}
                     <div className="schedule-card-section">
                         <div className="section-title-wrap">
                             <div className="section-badge-num">5</div>
+                            <h3>Alternative Hosts</h3>
+                        </div>
+                        <p className="schedule-desc-text">
+                            Search registered Faceonn users who are authorized to start and moderate this meeting if you are unavailable.
+                        </p>
+
+                        <div className="schedule-input-group" style={{ position: 'relative' }}>
+                            <input
+                                type="text"
+                                className="schedule-input-text"
+                                placeholder="Search registered Faceonn users by name or email..."
+                                value={altHostQuery}
+                                onChange={e => handleSearchAltHosts(e.target.value)} />
+
+                            {(searchingAltHosts || altHostResults.length > 0) && (
+                                <div className="alt-host-dropdown">
+                                    {searchingAltHosts ? (
+                                        <div className="alt-host-dropdown-empty">Searching users...</div>
+                                    ) : (
+                                        altHostResults.map(u => (
+                                            <button
+                                                key={u.id}
+                                                type="button"
+                                                className="alt-host-option"
+                                                onClick={() => handleAddAltHost(u)}>
+                                                <strong>{u.name || 'Faceonn User'}</strong>
+                                                <span>{u.email}</span>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {altHosts.length > 0 && (
+                            <div className="invitees-chips-list" style={{ marginTop: '10px' }}>
+                                {altHosts.map(h => (
+                                    <div key={h.id} className="invitee-chip">
+                                        <span className="invitee-chip-email">👑 {h.name || h.email} ({h.email})</span>
+                                        <button
+                                            type="button"
+                                            className="invitee-chip-remove"
+                                            onClick={() => handleRemoveAltHost(h.id)}>
+                                            ✕
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Section 6: Invite Participants */}
+                    <div className="schedule-card-section">
+                        <div className="section-title-wrap">
+                            <div className="section-badge-num">6</div>
                             <h3>Invite Attendees</h3>
                         </div>
                         <p className="schedule-desc-text">
