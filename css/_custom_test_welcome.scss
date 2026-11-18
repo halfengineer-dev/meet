@@ -63,23 +63,25 @@ body:has(.test-home-container) {
 }
 
 .test-nav-inner {
-  max-width: 1280px;
+  max-width: 1360px;
   margin: 0 auto;
   padding: 12px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
+  flex-wrap: nowrap;
 }
 
 .test-brand-logo-link {
   display: flex;
   align-items: center;
   text-decoration: none;
+  flex-shrink: 0;
 }
 
 .test-brand-logo-img {
-  height: 52px;
+  height: 44px;
   width: auto;
   object-fit: contain;
   transition: transform 0.2s ease;
@@ -92,7 +94,8 @@ body:has(.test-home-container) {
 .test-nav-menu {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
 .test-nav-dropdown-wrapper {
@@ -103,14 +106,16 @@ body:has(.test-home-container) {
   background: none;
   border: none;
   color: #e2e8f0;
-  font-size: 14.5px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  padding: 8px 12px;
+  padding: 8px 10px;
   border-radius: 8px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
   text-decoration: none;
   font-family: inherit;
   transition: all 0.2s ease;
@@ -165,11 +170,14 @@ body:has(.test-home-container) {
 .test-nav-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
 }
 
 .test-lang-picker {
   position: relative;
+  flex-shrink: 0;
 }
 
 .test-lang-btn {
@@ -181,9 +189,11 @@ body:has(.test-home-container) {
   padding: 7px 12px;
   border-radius: 20px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.2s;
 }
 
@@ -230,10 +240,16 @@ body:has(.test-home-container) {
   color: #e2e8f0;
   font-size: 14px;
   font-weight: 600;
-  padding: 8px 14px;
+  padding: 8px 10px;
   cursor: pointer;
   font-family: inherit;
   border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
   transition: color 0.2s;
 }
 
@@ -247,10 +263,16 @@ body:has(.test-home-container) {
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
-  padding: 8px 18px;
+  padding: 8px 16px;
   border-radius: 20px;
   cursor: pointer;
   font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
   transition: all 0.2s;
 }
 
@@ -265,13 +287,17 @@ body:has(.test-home-container) {
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
-  padding: 9px 20px;
+  padding: 9px 18px;
   border-radius: 20px;
   cursor: pointer;
   font-family: inherit;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
   box-shadow: 0 4px 18px rgba(124, 58, 237, 0.45);
   transition: all 0.2s;
 }
@@ -1502,7 +1528,33 @@ body:has(.test-home-container) {
    8. RESPONSIVE BREAKPOINTS
    ========================================================================== */
 
+@media (max-width: 1200px) {
+  .test-nav-inner {
+    padding: 12px 16px;
+    gap: 10px;
+  }
+
+  .test-nav-menu {
+    gap: 6px;
+  }
+
+  .test-nav-link,
+  .test-btn-text {
+    font-size: 13.5px;
+    padding: 7px 8px;
+  }
+
+  .test-btn-signin,
+  .test-btn-getstarted {
+    font-size: 13.5px;
+    padding: 8px 14px;
+  }
+}
+
 @media (max-width: 1024px) {
+  .test-nav-menu {
+    display: none;
+  }
 
   .test-hero-grid,
   .test-why-grid,
