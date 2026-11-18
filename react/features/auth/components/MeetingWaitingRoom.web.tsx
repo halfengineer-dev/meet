@@ -379,7 +379,7 @@ export default function MeetingWaitingRoom() {
             {/* Top Navigation Bar */}
             <header className="waiting-topbar">
                 <a href={isUserAuth ? '/dashboard' : '/'} className="waiting-brand-link">
-                    <img src="images/faceonn-logo.png" alt="Faceonn" className="waiting-brand-logo" />
+                    <img src="/images/faceonn-neon-logo.png" alt="Faceonn" className="waiting-brand-logo" />
                 </a>
 
                 <div className="waiting-topbar-actions">
