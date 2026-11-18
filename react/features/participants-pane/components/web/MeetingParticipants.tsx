@@ -1,15 +1,25 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { connect, useSelector, useDispatch } from 'react-redux';
+import { connect, useDispatch, useSelector } from 'react-redux';
 import { makeStyles } from 'tss-react/mui';
 
 import { IReduxState } from '../../../app/types';
 import participantsPaneTheme from '../../../base/components/themes/participantsPaneTheme.json';
-import { getParticipantById, isScreenShareParticipant, isLocalParticipantModerator } from '../../../base/participants/functions';
-import { addFakeParticipants } from '../../../base/participants/actions';
+import {
+    addFakeParticipants,
+    cancelPendingFakeParticipants,
+    removeAllFakeParticipants,
+    removeFakeParticipants
+} from '../../../base/participants/actions';
+import {
+    getLoadTestFakeParticipantsCount,
+    getParticipantById,
+    isLocalParticipantModerator,
+    isScreenShareParticipant
+} from '../../../base/participants/functions';
 import Button from '../../../base/ui/components/web/Button';
-import { BUTTON_TYPES } from '../../../base/ui/constants.web';
 import Input from '../../../base/ui/components/web/Input';
+import { BUTTON_TYPES } from '../../../base/ui/constants.web';
 import useContextMenu from '../../../base/ui/hooks/useContextMenu.web';
 import { normalizeAccents } from '../../../base/util/strings.web';
 import { getBreakoutRooms, getCurrentRoomId, isInBreakoutRoom } from '../../../breakout-rooms/functions';
@@ -45,6 +55,32 @@ const useStyles = makeStyles()(theme => {
                 textAlign: 'center',
                 paddingRight: '16px'
             }
+        },
+
+        fakeParticipantsContainer: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            margin: `${theme.spacing(2)} 0`
+        },
+
+        fakeParticipantsActions: {
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center'
+        },
+
+        fakeParticipantsActionBtn: {
+            flex: 1
+        },
+
+        fakeParticipantsStatus: {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            color: theme.palette.text02,
+            ...theme.typography.labelRegular
         }
     };
 });
@@ -54,13 +90,16 @@ interface IProps {
         jid: string;
         name: string;
     };
+    fakeParticipantsCount?: number;
+    isModerator?: boolean;
     overflowDrawer?: boolean;
     participantsCount?: number;
+    pendingFakeParticipantsAddCount?: number;
+    pendingFakeParticipantsRemoveCount?: number;
     searchString: string;
     setSearchString: (newValue: string) => void;
     showInviteButton?: boolean;
     sortedParticipantIds?: Array<string>;
-    isModerator?: boolean;
 }
 
 /**
@@ -75,13 +114,16 @@ interface IProps {
  */
 function MeetingParticipants({
     currentRoom,
+    fakeParticipantsCount = 0,
+    isModerator,
     overflowDrawer,
     participantsCount,
+    pendingFakeParticipantsAddCount = 0,
+    pendingFakeParticipantsRemoveCount = 0,
     searchString,
     setSearchString,
     showInviteButton,
-    sortedParticipantIds = [],
-    isModerator
+    sortedParticipantIds = []
 }: IProps) {
     const { t } = useTranslation();
 
@@ -100,14 +142,40 @@ function MeetingParticipants({
     const _isCurrentRoomRenamable = useSelector(isCurrentRoomRenamable);
     const dispatch = useDispatch();
 
-    const [numFakeParticipants, setNumFakeParticipants] = useState<string>('');
+    const [ numFakeParticipants, setNumFakeParticipants ] = useState<string>('');
 
     const handleAddFakeParticipants = useCallback(() => {
         if (numFakeParticipants.trim() !== '') {
             dispatch(addFakeParticipants(numFakeParticipants));
             setNumFakeParticipants('');
         }
-    }, [dispatch, numFakeParticipants]);
+    }, [ dispatch, numFakeParticipants ]);
+
+    const handleRemoveFakeParticipants = useCallback(() => {
+        if (numFakeParticipants.trim() !== '') {
+            dispatch(removeFakeParticipants(numFakeParticipants));
+            setNumFakeParticipants('');
+        }
+    }, [ dispatch, numFakeParticipants ]);
+
+    const handleRemoveAllFakeParticipants = useCallback(() => {
+        dispatch(removeAllFakeParticipants());
+        setNumFakeParticipants('');
+    }, [ dispatch ]);
+
+    const handleCancelPendingFakeParticipants = useCallback(() => {
+        dispatch(cancelPendingFakeParticipants());
+    }, [ dispatch ]);
+
+    const hasPendingFakeOperations = pendingFakeParticipantsAddCount > 0 || pendingFakeParticipantsRemoveCount > 0;
+    const statusParts: string[] = [];
+
+    if (pendingFakeParticipantsAddCount > 0) {
+        statusParts.push(`Adding ${pendingFakeParticipantsAddCount} left...`);
+    }
+    if (pendingFakeParticipantsRemoveCount > 0) {
+        statusParts.push(`Removing ${pendingFakeParticipantsRemoveCount} left...`);
+    }
 
     const { classes: styles } = useStyles();
 
@@ -130,7 +198,7 @@ function MeetingParticipants({
             </div>
             {showInviteButton && <InviteButton />}
             {isModerator && (
-                <div style={{ display: 'flex', gap: '8px', margin: '8px 0', alignItems: 'center' }}>
+                <div className = { styles.fakeParticipantsContainer }>
                     <Input
                         accessibilityLabel = 'Number of fake participants or comma separated names'
                         id = 'add-fake-participants-input'
@@ -138,11 +206,47 @@ function MeetingParticipants({
                         placeholder = 'Number or Names (e.g. 5 or Bob, Alice)'
                         type = 'text'
                         value = { numFakeParticipants } />
-                    <Button
-                        accessibilityLabel = 'Add'
-                        labelKey = 'Add'
-                        onClick = { handleAddFakeParticipants }
-                        type = { BUTTON_TYPES.PRIMARY } />
+                    <div className = { styles.fakeParticipantsActions }>
+                        <Button
+                            accessibilityLabel = 'Add dummy participants'
+                            className = { styles.fakeParticipantsActionBtn }
+                            disabled = { numFakeParticipants.trim() === '' }
+                            label = 'Add'
+                            onClick = { handleAddFakeParticipants }
+                            size = 'small'
+                            type = { BUTTON_TYPES.PRIMARY } />
+                        <Button
+                            accessibilityLabel = 'Remove dummy participants'
+                            className = { styles.fakeParticipantsActionBtn }
+                            disabled = {
+                                numFakeParticipants.trim() === ''
+                                || (fakeParticipantsCount === 0 && pendingFakeParticipantsAddCount === 0)
+                            }
+                            label = 'Remove'
+                            onClick = { handleRemoveFakeParticipants }
+                            size = 'small'
+                            type = { BUTTON_TYPES.SECONDARY } />
+                    </div>
+                    {fakeParticipantsCount > 0 && (
+                        <Button
+                            accessibilityLabel = 'Remove all dummy participants'
+                            fullWidth = { true }
+                            label = { `Remove All (${fakeParticipantsCount})` }
+                            onClick = { handleRemoveAllFakeParticipants }
+                            size = 'small'
+                            type = { BUTTON_TYPES.DESTRUCTIVE } />
+                    )}
+                    {hasPendingFakeOperations && (
+                        <div className = { styles.fakeParticipantsStatus }>
+                            <span>{ statusParts.join(' • ') }</span>
+                            <Button
+                                accessibilityLabel = 'Stop pending dummy participant updates'
+                                label = 'Stop'
+                                onClick = { handleCancelPendingFakeParticipants }
+                                size = 'small'
+                                type = { BUTTON_TYPES.TERTIARY } />
+                        </div>
+                    )}
                 </div>
             )}
             <Input
@@ -211,13 +315,21 @@ function _mapStateToProps(state: IReduxState) {
     const currentRoomId = getCurrentRoomId(state);
     const currentRoom = getBreakoutRooms(state)[currentRoomId];
 
+    const {
+        pendingFakeParticipantsAddCount = 0,
+        pendingFakeParticipantsRemoveCount = 0
+    } = state['features/base/participants'];
+
     return {
         currentRoom,
+        fakeParticipantsCount: getLoadTestFakeParticipantsCount(state),
+        isModerator: isLocalParticipantModerator(state),
         overflowDrawer,
         participantsCount,
+        pendingFakeParticipantsAddCount,
+        pendingFakeParticipantsRemoveCount,
         showInviteButton,
-        sortedParticipantIds,
-        isModerator: isLocalParticipantModerator(state)
+        sortedParticipantIds
     };
 }
 

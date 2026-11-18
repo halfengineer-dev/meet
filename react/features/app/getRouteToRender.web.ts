@@ -7,7 +7,6 @@ import DashboardPage from '../auth/components/DashboardPage.web';
 import LandingPage from '../auth/components/LandingPage.web';
 import LoginPage from '../auth/components/LoginPage.web';
 import MeetingWaitingRoom from '../auth/components/MeetingWaitingRoom.web';
-import SignUpPage from '../auth/components/SignUpPage.web';
 import { getAccessToken, getActiveMeetingSession, isAuthInitializing, isAuthenticated } from '../auth/functions';
 import { IStateful } from '../base/app/types';
 import { setRoom } from '../base/conference/actions';
@@ -66,21 +65,23 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
         return route;
     }
 
-    // 3. Public route: /signup
+    // 3. Public self-signup is disabled: redirect /signup to /login (or /dashboard if signed in)
     if (pathname === '/signup') {
+        const redirectParam = new URLSearchParams(window.location.search).get('redirect');
+
         if (isUserAuth) {
-            const redirectParam = new URLSearchParams(window.location.search).get('redirect');
             const target = redirectParam && redirectParam !== '/login' && redirectParam !== '/signup'
                 ? redirectParam
                 : '/dashboard';
 
             return { component: undefined, href: target };
         }
-        const route = _getEmptyRoute();
 
-        route.component = SignUpPage;
+        const loginTarget = redirectParam && redirectParam !== '/login' && redirectParam !== '/signup'
+            ? `/login?redirect=${encodeURIComponent(redirectParam)}`
+            : '/login';
 
-        return route;
+        return { component: undefined, href: loginTarget };
     }
 
     // 4. Protected route: /dashboard

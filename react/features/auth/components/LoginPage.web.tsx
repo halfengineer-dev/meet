@@ -51,10 +51,6 @@ export default function LoginPage() {
         }
     };
 
-    const signupLink = redirectUrl
-        ? `/signup?redirect=${encodeURIComponent(redirectUrl)}`
-        : '/signup';
-
     const displayError = localError || error;
 
     return (
@@ -64,7 +60,7 @@ export default function LoginPage() {
                     <img src="images/faceonn-neon-logo.png" alt="Faceonn" />
                 </a>
                 <a
-                    href={signupLink}
+                    href="/"
                     style={{
                         color: '#ffffff',
                         fontSize: '14px',
@@ -75,7 +71,7 @@ export default function LoginPage() {
                         borderRadius: '20px',
                         border: '1px solid rgba(255, 255, 255, 0.22)'
                     }}>
-                    Sign Up Free
+                    Home
                 </a>
             </header>
 
@@ -157,10 +153,7 @@ export default function LoginPage() {
                     </form>
 
                     <div className="faceonn-auth-footer">
-                        Don&apos;t have an account?{' '}
-                        <a href={signupLink}>
-                            Sign up free
-                        </a>
+                        Need an account? Contact your administrator to be onboarded.
                     </div>
                 </div>
             </div>

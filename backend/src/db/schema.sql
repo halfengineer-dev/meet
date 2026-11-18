@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash TEXT NOT NULL,
     avatar_url TEXT,
     email_verified BOOLEAN DEFAULT FALSE,
+    role VARCHAR(30) NOT NULL DEFAULT 'user',
     status VARCHAR(50) DEFAULT 'active',
     pmi VARCHAR(30) UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -16,8 +17,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
--- Ensure PMI column exists on existing user tables
+-- Ensure PMI and role columns exist on existing user tables
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pmi VARCHAR(30) UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(30) NOT NULL DEFAULT 'user';
 
 CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY,

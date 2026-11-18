@@ -1,9 +1,9 @@
-import { IStore } from '../../app/types';
+import { IReduxState, IStore } from '../../app/types';
 import { showNotification } from '../../notifications/actions';
 import { NOTIFICATION_TIMEOUT_TYPE } from '../../notifications/constants';
 import { IJitsiConference } from '../conference/reducer';
 import { set } from '../redux/functions';
-import RANDOM_NAMES from './names.json';
+
 
 import {
     DOMINANT_SPEAKER_CHANGED,
@@ -26,6 +26,7 @@ import {
     RAISE_HAND_CLEAR,
     RAISE_HAND_UPDATED,
     SCREENSHARE_PARTICIPANT_NAME_CHANGED,
+    SET_FAKE_PARTICIPANTS_PENDING_COUNTS,
     SET_LOADABLE_AVATAR_URL,
     SET_LOCAL_PARTICIPANT_RECORDING_STATUS
 } from './actionTypes';
@@ -33,6 +34,7 @@ import {
     DISCO_REMOTE_CONTROL_FEATURE
 } from './constants';
 import {
+    getLoadTestFakeParticipants,
     getLocalParticipant,
     getNormalizedDisplayName,
     getParticipantById,
@@ -40,6 +42,7 @@ import {
     getVirtualScreenshareParticipantOwnerId
 } from './functions';
 import logger from './logger';
+import RANDOM_NAMES from './names.json';
 import { FakeParticipant, IJitsiParticipant, IParticipant } from './types';
 
 /**
@@ -689,8 +692,274 @@ export function updateLocalRecordingStatus(recording: boolean, onlySelf?: boolea
     };
 }
 
+interface IFakeParticipantEntry {
+    id: string;
+    name: string;
+}
+
+const FAKE_PARTICIPANT_INITIAL_MIN_DELAY_MS = 500;
+const FAKE_PARTICIPANT_INITIAL_MAX_DELAY_MS = 1500;
+const FAKE_PARTICIPANT_MIN_DELAY_MS = 1000;
+const FAKE_PARTICIPANT_MAX_DELAY_MS = 4000;
+
+let pendingAddQueue: IFakeParticipantEntry[] = [];
+let pendingAddTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingAddConference: IJitsiConference | undefined;
+
+let pendingRemoveQueue: string[] = [];
+let pendingRemoveTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingRemoveConference: IJitsiConference | undefined;
+
 /**
- * Action to add N fake participants for load testing/UI testing, or specific named participants.
+ * Returns a random integer delay in milliseconds between minMs and maxMs (inclusive).
+ *
+ * @param {number} minMs - Minimum delay in ms.
+ * @param {number} maxMs - Maximum delay in ms.
+ * @returns {number}
+ */
+function _getRandomDelay(minMs: number, maxMs: number): number {
+    return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
+
+/**
+ * Returns a shuffled shallow copy of an array using Fisher-Yates.
+ *
+ * @param {Array<T>} items - Array to shuffle.
+ * @returns {Array<T>}
+ */
+function _shuffleArray<T>(items: T[]): T[] {
+    const copy = [ ...items ];
+
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+
+        [ copy[i], copy[j] ] = [ copy[j], copy[i] ];
+    }
+
+    return copy;
+}
+
+/**
+ * Picks N random names from RANDOM_NAMES, preferring names not currently in use.
+ *
+ * @param {number} count - Number of names to pick.
+ * @param {Set<string>} usedNamesLower - Lowercased names already present or queued.
+ * @returns {Array<string>}
+ */
+function _pickRandomNames(count: number, usedNamesLower: Set<string>): string[] {
+    const unused = _shuffleArray(RANDOM_NAMES.filter(n => !usedNamesLower.has(n.toLowerCase())));
+    const picked: string[] = [];
+
+    for (let i = 0; i < count; i++) {
+        if (i < unused.length) {
+            picked.push(unused[i]);
+        } else {
+            picked.push(RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)]);
+        }
+    }
+
+    return picked;
+}
+
+/**
+ * Dispatches updated pending add/remove counts to Redux state.
+ *
+ * @param {Function} dispatch - Redux dispatch.
+ * @returns {void}
+ */
+function _syncPendingFakeParticipantCounts(dispatch: IStore['dispatch']) {
+    dispatch({
+        type: SET_FAKE_PARTICIPANTS_PENDING_COUNTS,
+        addCount: pendingAddQueue.length,
+        removeCount: pendingRemoveQueue.length
+    });
+}
+
+/**
+ * Broadcasts the full authoritative list of LoadTest fake participants via XMPP presence command.
+ *
+ * @param {IReduxState} state - Current Redux state.
+ * @param {IJitsiConference} [conference] - Active conference instance.
+ * @returns {void}
+ */
+function _broadcastFakeParticipants(state: IReduxState, conference?: IJitsiConference) {
+    try {
+        if (conference) {
+            const allFakeParticipantsList = getLoadTestFakeParticipants(state).map(p => ({
+                id: p.id,
+                name: p.name ?? ''
+            }));
+
+            conference.sendCommand('ADD_FAKE_PARTICIPANTS', {
+                value: JSON.stringify(allFakeParticipantsList)
+            });
+        }
+    } catch (e) {
+        console.error('Failed to broadcast fake participants', e);
+    }
+}
+
+/**
+ * Clears the pending add timer and queue without dispatching.
+ *
+ * @returns {void}
+ */
+function _clearPendingAddQueue() {
+    if (pendingAddTimer !== null) {
+        clearTimeout(pendingAddTimer);
+        pendingAddTimer = null;
+    }
+    pendingAddQueue = [];
+    pendingAddConference = undefined;
+}
+
+/**
+ * Clears the pending remove timer and queue without dispatching.
+ *
+ * @returns {void}
+ */
+function _clearPendingRemoveQueue() {
+    if (pendingRemoveTimer !== null) {
+        clearTimeout(pendingRemoveTimer);
+        pendingRemoveTimer = null;
+    }
+    pendingRemoveQueue = [];
+    pendingRemoveConference = undefined;
+}
+
+/**
+ * Schedules the next dummy participant addition from the pending add queue.
+ *
+ * @param {Function} dispatch - Redux dispatch.
+ * @param {Function} getState - Redux getState.
+ * @param {number} delayMs - Delay in milliseconds before adding the next participant.
+ * @returns {void}
+ */
+function _scheduleNextFakeParticipantAdd(
+        dispatch: IStore['dispatch'],
+        getState: IStore['getState'],
+        delayMs: number
+) {
+    pendingAddTimer = setTimeout(() => {
+        pendingAddTimer = null;
+
+        const currentConference = getState()['features/base/conference'].conference;
+
+        if (currentConference !== pendingAddConference) {
+            _clearPendingAddQueue();
+            _syncPendingFakeParticipantCounts(dispatch);
+
+            return;
+        }
+
+        const nextParticipant = pendingAddQueue.shift();
+
+        if (!nextParticipant) {
+            pendingAddConference = undefined;
+            _syncPendingFakeParticipantCounts(dispatch);
+
+            return;
+        }
+
+        dispatch(participantJoined({
+            conference: currentConference,
+            fakeParticipant: FakeParticipant.LoadTest,
+            id: nextParticipant.id,
+            name: nextParticipant.name,
+            role: 'participant'
+        }));
+
+        _broadcastFakeParticipants(getState(), currentConference);
+        _syncPendingFakeParticipantCounts(dispatch);
+
+        if (pendingAddQueue.length > 0) {
+            _scheduleNextFakeParticipantAdd(
+                dispatch,
+                getState,
+                _getRandomDelay(FAKE_PARTICIPANT_MIN_DELAY_MS, FAKE_PARTICIPANT_MAX_DELAY_MS)
+            );
+        } else {
+            pendingAddConference = undefined;
+        }
+    }, delayMs);
+}
+
+/**
+ * Schedules the next dummy participant removal from the pending remove queue.
+ *
+ * @param {Function} dispatch - Redux dispatch.
+ * @param {Function} getState - Redux getState.
+ * @param {number} delayMs - Delay in milliseconds before removing the next participant.
+ * @returns {void}
+ */
+function _scheduleNextFakeParticipantRemove(
+        dispatch: IStore['dispatch'],
+        getState: IStore['getState'],
+        delayMs: number
+) {
+    pendingRemoveTimer = setTimeout(() => {
+        pendingRemoveTimer = null;
+
+        const state = getState();
+        const currentConference = state['features/base/conference'].conference;
+
+        if (currentConference !== pendingRemoveConference) {
+            _clearPendingRemoveQueue();
+            _syncPendingFakeParticipantCounts(dispatch);
+
+            return;
+        }
+
+        let removed = false;
+
+        while (pendingRemoveQueue.length > 0 && !removed) {
+            const nextId = pendingRemoveQueue.shift();
+
+            if (!nextId) {
+                continue;
+            }
+
+            const latestState = getState();
+            const existing = latestState['features/base/participants'].fakeParticipants.get(nextId);
+
+            if (existing?.fakeParticipant === FakeParticipant.LoadTest) {
+                dispatch(participantLeft(nextId, existing.conference ?? currentConference, {
+                    fakeParticipant: FakeParticipant.LoadTest
+                }));
+                _broadcastFakeParticipants(getState(), currentConference);
+                removed = true;
+            }
+        }
+
+        _syncPendingFakeParticipantCounts(dispatch);
+
+        if (pendingRemoveQueue.length > 0) {
+            _scheduleNextFakeParticipantRemove(
+                dispatch,
+                getState,
+                _getRandomDelay(FAKE_PARTICIPANT_MIN_DELAY_MS, FAKE_PARTICIPANT_MAX_DELAY_MS)
+            );
+        } else {
+            pendingRemoveConference = undefined;
+        }
+    }, delayMs);
+}
+
+/**
+ * Action to cancel any pending gradual fake participant additions or removals.
+ *
+ * @returns {Function}
+ */
+export function cancelPendingFakeParticipants() {
+    return (dispatch: IStore['dispatch']) => {
+        _clearPendingAddQueue();
+        _clearPendingRemoveQueue();
+        _syncPendingFakeParticipantCounts(dispatch);
+    };
+}
+
+/**
+ * Action to gradually add N fake participants with random delays, or specific named participants.
  *
  * @param {string | number} countOrNames - The number of fake participants to add, or a comma-separated list of names.
  * @returns {Function}
@@ -699,53 +968,233 @@ export function addFakeParticipants(countOrNames: string | number) {
     return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
         const state = getState();
         const conference = state['features/base/conference'].conference;
-        const fakeParticipantsList: {id: string, name: string}[] = [];
+        const fakeParticipantsList: IFakeParticipantEntry[] = [];
+        const rawInput = typeof countOrNames === 'string' ? countOrNames.trim() : countOrNames;
 
-        if (typeof countOrNames === 'string' && isNaN(Number(countOrNames))) {
-            const names = countOrNames.split(',').map(n => n.trim()).filter(Boolean);
+        if (rawInput === '') {
+            return;
+        }
+
+        if (typeof rawInput === 'string' && isNaN(Number(rawInput))) {
+            const names = rawInput.split(',').map(n => n.trim()).filter(Boolean);
+
             names.forEach(name => {
-                const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
+                const id = `load-test-${Math.random().toString(36).slice(2, 11)}`;
+
                 fakeParticipantsList.push({ id, name });
             });
         } else {
-            const n = Number(countOrNames);
-            for (let i = 0; i < n; i++) {
-                const id = `load-test-${Math.random().toString(36).substr(2, 9)}`;
-                const randomName = RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)];
-                fakeParticipantsList.push({ id, name: randomName });
+            const n = Math.floor(Number(rawInput));
+
+            if (!Number.isFinite(n) || n <= 0) {
+                return;
+            }
+
+            const usedNamesLower = new Set<string>();
+
+            getLoadTestFakeParticipants(state).forEach(p => {
+                if (p.name) {
+                    usedNamesLower.add(p.name.toLowerCase());
+                }
+            });
+            pendingAddQueue.forEach(p => usedNamesLower.add(p.name.toLowerCase()));
+
+            const pickedNames = _pickRandomNames(n, usedNamesLower);
+
+            pickedNames.forEach(name => {
+                const id = `load-test-${Math.random().toString(36).slice(2, 11)}`;
+
+                fakeParticipantsList.push({ id, name });
+            });
+        }
+
+        if (fakeParticipantsList.length === 0) {
+            return;
+        }
+
+        if (pendingAddConference !== conference) {
+            _clearPendingAddQueue();
+        }
+
+        pendingAddConference = conference;
+        pendingAddQueue.push(...fakeParticipantsList);
+        _syncPendingFakeParticipantCounts(dispatch);
+
+        if (pendingAddTimer === null) {
+            _scheduleNextFakeParticipantAdd(
+                dispatch,
+                getState,
+                _getRandomDelay(FAKE_PARTICIPANT_INITIAL_MIN_DELAY_MS, FAKE_PARTICIPANT_INITIAL_MAX_DELAY_MS)
+            );
+        }
+    };
+}
+
+/**
+ * Action to immediately remove a single fake participant by ID and broadcast the updated list.
+ *
+ * @param {string} participantId - The ID of the fake participant to remove.
+ * @returns {Function}
+ */
+export function removeFakeParticipant(participantId: string) {
+    return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
+        const state = getState();
+        const conference = state['features/base/conference'].conference;
+        const existing = state['features/base/participants'].fakeParticipants.get(participantId);
+
+        if (pendingRemoveQueue.length > 0) {
+            pendingRemoveQueue = pendingRemoveQueue.filter(id => id !== participantId);
+            if (pendingRemoveQueue.length === 0) {
+                _clearPendingRemoveQueue();
+            }
+            _syncPendingFakeParticipantCounts(dispatch);
+        }
+
+        if (existing?.fakeParticipant === FakeParticipant.LoadTest) {
+            dispatch(participantLeft(participantId, existing.conference ?? conference, {
+                fakeParticipant: FakeParticipant.LoadTest
+            }));
+            _broadcastFakeParticipants(getState(), conference);
+        }
+    };
+}
+
+/**
+ * Action to remove N fake participants (with random delays when removing multiple) or specific named fake participants.
+ *
+ * @param {string | number} countOrNames - Number of fake participants to remove, or comma-separated names.
+ * @returns {Function}
+ */
+export function removeFakeParticipants(countOrNames: string | number) {
+    return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
+        const state = getState();
+        const conference = state['features/base/conference'].conference;
+        const rawInput = typeof countOrNames === 'string' ? countOrNames.trim() : countOrNames;
+
+        if (rawInput === '') {
+            return;
+        }
+
+        const alreadyQueuedForRemoval = new Set(pendingRemoveQueue);
+        const availableExisting = getLoadTestFakeParticipants(state).filter(
+            p => !alreadyQueuedForRemoval.has(p.id)
+        );
+        const targetIds: string[] = [];
+
+        if (typeof rawInput === 'string' && isNaN(Number(rawInput))) {
+            const names = rawInput.split(',').map(n => n.trim().toLowerCase()).filter(Boolean);
+            const remainingExisting = [ ...availableExisting ];
+
+            names.forEach(query => {
+                let matchIndex = remainingExisting.findIndex(
+                    p => (p.name ?? '').trim().toLowerCase() === query
+                );
+
+                if (matchIndex === -1) {
+                    matchIndex = remainingExisting.findIndex(
+                        p => (p.name ?? '').trim().toLowerCase().includes(query)
+                    );
+                }
+
+                if (matchIndex !== -1) {
+                    targetIds.push(remainingExisting[matchIndex].id);
+                    remainingExisting.splice(matchIndex, 1);
+                } else {
+                    const queuedIndex = pendingAddQueue.findIndex(
+                        p => p.name.trim().toLowerCase() === query
+                            || p.name.trim().toLowerCase().includes(query)
+                    );
+
+                    if (queuedIndex !== -1) {
+                        pendingAddQueue.splice(queuedIndex, 1);
+                    }
+                }
+            });
+
+            if (pendingAddQueue.length === 0 && pendingAddTimer !== null) {
+                _clearPendingAddQueue();
+            }
+        } else {
+            const n = Math.floor(Number(rawInput));
+
+            if (!Number.isFinite(n) || n <= 0) {
+                return;
+            }
+
+            const shuffled = _shuffleArray(availableExisting);
+            const toTake = Math.min(n, shuffled.length);
+
+            for (let i = 0; i < toTake; i++) {
+                targetIds.push(shuffled[i].id);
+            }
+
+            const remainingToCancel = n - toTake;
+
+            if (remainingToCancel > 0 && pendingAddQueue.length > 0) {
+                pendingAddQueue.splice(Math.max(0, pendingAddQueue.length - remainingToCancel), remainingToCancel);
+                if (pendingAddQueue.length === 0) {
+                    _clearPendingAddQueue();
+                }
             }
         }
 
-        fakeParticipantsList.forEach(p => {
-            dispatch(participantJoined({
-                conference,
-                fakeParticipant: FakeParticipant.LoadTest,
-                id: p.id,
-                name: p.name,
-                role: 'participant'
+        if (targetIds.length === 1 && pendingRemoveQueue.length === 0) {
+            const id = targetIds[0];
+            const existing = getState()['features/base/participants'].fakeParticipants.get(id);
+
+            if (existing?.fakeParticipant === FakeParticipant.LoadTest) {
+                dispatch(participantLeft(id, existing.conference ?? conference, {
+                    fakeParticipant: FakeParticipant.LoadTest
+                }));
+                _broadcastFakeParticipants(getState(), conference);
+            }
+            _syncPendingFakeParticipantCounts(dispatch);
+
+            return;
+        }
+
+        if (targetIds.length > 0) {
+            if (pendingRemoveConference !== conference) {
+                _clearPendingRemoveQueue();
+            }
+
+            pendingRemoveConference = conference;
+            pendingRemoveQueue.push(...targetIds);
+
+            if (pendingRemoveTimer === null) {
+                _scheduleNextFakeParticipantRemove(
+                    dispatch,
+                    getState,
+                    _getRandomDelay(FAKE_PARTICIPANT_INITIAL_MIN_DELAY_MS, FAKE_PARTICIPANT_INITIAL_MAX_DELAY_MS)
+                );
+            }
+        }
+
+        _syncPendingFakeParticipantCounts(dispatch);
+    };
+}
+
+/**
+ * Action to immediately remove all LoadTest fake participants and cancel any pending additions/removals.
+ *
+ * @returns {Function}
+ */
+export function removeAllFakeParticipants() {
+    return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
+        _clearPendingAddQueue();
+        _clearPendingRemoveQueue();
+
+        const state = getState();
+        const conference = state['features/base/conference'].conference;
+        const fakeParticipants = getLoadTestFakeParticipants(state);
+
+        fakeParticipants.forEach(p => {
+            dispatch(participantLeft(p.id, p.conference ?? conference, {
+                fakeParticipant: FakeParticipant.LoadTest
             }));
         });
 
-        try {
-            if (conference) {
-                // Read from updated state to include both existing and newly added fake participants
-                const updatedState = getState();
-                const allFakeParticipantsList: {id: string, name: string}[] = [];
-                const existingFake = updatedState['features/base/participants'].fakeParticipants;
-
-                if (existingFake) {
-                    existingFake.forEach((p: any, id: string) => {
-                        if (p.fakeParticipant === FakeParticipant.LoadTest) {
-                            allFakeParticipantsList.push({ id, name: p.name });
-                        }
-                    });
-                }
-                conference.sendCommand('ADD_FAKE_PARTICIPANTS', {
-                    value: JSON.stringify(allFakeParticipantsList)
-                });
-            }
-        } catch (e) {
-            console.error('Failed to broadcast fake participants', e);
-        }
+        _broadcastFakeParticipants(getState(), conference);
+        _syncPendingFakeParticipantCounts(dispatch);
     };
 }

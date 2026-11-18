@@ -18,6 +18,10 @@ export function getAuthUser(state: IReduxState): IUser | null {
     return getAuthState(state).user;
 }
 
+export function isAdminUser(state: IReduxState): boolean {
+    return getAuthUser(state)?.role === 'admin';
+}
+
 export function isAuthenticated(state: IReduxState): boolean {
     return Boolean(getAuthState(state).isAuthenticated && getAuthState(state).user);
 }

@@ -7,6 +7,7 @@ import { sessionRepository } from '../src/db/repositories/session-repository';
 import { meetingRepository } from '../src/db/repositories/meeting-repository';
 import { occurrenceRepository } from '../src/db/repositories/occurrence-repository';
 import { meetingSessionRepository } from '../src/db/repositories/meeting-session-repository';
+import { authService } from '../src/auth/auth-service';
 
 describe('Meeting Authorization API', () => {
   const app = createHttpServer();
@@ -21,21 +22,29 @@ describe('Meeting Authorization API', () => {
     await sessionRepository.clearAll();
     await userRepository.clearAll();
 
-    // Register User A (Meeting Host)
+    // Onboard & log in User A (Meeting Host)
+    await authService.onboardUserByAdmin({
+      name: 'User A',
+      email: 'userA@example.com',
+      password: 'Password123!',
+    });
     const resA = await request(app)
-      .post('/api/auth/register')
+      .post('/api/auth/login')
       .send({
-        name: 'User A',
         email: 'userA@example.com',
         password: 'Password123!',
       });
     userA = { token: resA.body.accessToken, id: resA.body.user.id, email: resA.body.user.email };
 
-    // Register User B (Attendee)
+    // Onboard & log in User B (Attendee)
+    await authService.onboardUserByAdmin({
+      name: 'User B',
+      email: 'userB@example.com',
+      password: 'Password123!',
+    });
     const resB = await request(app)
-      .post('/api/auth/register')
+      .post('/api/auth/login')
       .send({
-        name: 'User B',
         email: 'userB@example.com',
         password: 'Password123!',
       });

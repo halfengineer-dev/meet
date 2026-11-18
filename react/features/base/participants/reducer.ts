@@ -18,6 +18,7 @@ import {
     RAISE_HAND_CLEAR,
     RAISE_HAND_UPDATED,
     SCREENSHARE_PARTICIPANT_NAME_CHANGED,
+    SET_FAKE_PARTICIPANTS_PENDING_COUNTS,
     SET_LOADABLE_AVATAR_URL
 } from './actionTypes';
 import { LOCAL_PARTICIPANT_DEFAULT_ID, PARTICIPANT_ROLE } from './constants';
@@ -77,6 +78,8 @@ const DEFAULT_STATE = {
     numberOfParticipantsDisabledE2EE: 0,
     numberOfParticipantsNotSupportingE2EE: 0,
     overwrittenNameList: {},
+    pendingFakeParticipantsAddCount: 0,
+    pendingFakeParticipantsRemoveCount: 0,
     pinnedParticipant: undefined,
     raisedHandsQueue: [],
     remote: new Map(),
@@ -95,6 +98,8 @@ export interface IParticipantsState {
     numberOfParticipantsDisabledE2EE: number;
     numberOfParticipantsNotSupportingE2EE: number;
     overwrittenNameList: { [id: string]: string; };
+    pendingFakeParticipantsAddCount: number;
+    pendingFakeParticipantsRemoveCount: number;
     pinnedParticipant?: string;
     raisedHandsQueue: Array<{ hasBeenNotified?: boolean; id: string; raisedHandTimestamp: number; }>;
     remote: Map<string, IParticipant>;
@@ -528,6 +533,13 @@ ReducerRegistry.register<IParticipantsState>('features/base/participants',
                 ...state.overwrittenNameList,
                 [id]: name
             }
+        };
+    }
+    case SET_FAKE_PARTICIPANTS_PENDING_COUNTS: {
+        return {
+            ...state,
+            pendingFakeParticipantsAddCount: action.addCount,
+            pendingFakeParticipantsRemoveCount: action.removeCount
         };
     }
     }

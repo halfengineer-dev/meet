@@ -1,6 +1,7 @@
+import crypto from 'crypto';
 import { userRepository } from '../db/repositories/user-repository';
 import { sessionRepository } from '../db/repositories/session-repository';
-import { UserRecord, SessionRecord } from '../db/types';
+import { UserRecord, UserRole, SessionRecord } from '../db/types';
 import { hashPassword, verifyPassword, validatePasswordPolicy } from './password';
 import {
   generateAccessToken,
@@ -20,6 +21,7 @@ export interface SafeUser {
   email: string;
   avatarUrl: string | null;
   emailVerified: boolean;
+  role: UserRole;
   status: string;
   createdAt: string;
   lastLoginAt: string | null;
@@ -32,10 +34,39 @@ export function toSafeUser(user: UserRecord): SafeUser {
     email: user.email,
     avatarUrl: user.avatar_url,
     emailVerified: user.email_verified,
+    role: user.role === 'admin' ? 'admin' : 'user',
     status: user.status,
-    createdAt: user.created_at.toISOString(),
-    lastLoginAt: user.last_login_at ? user.last_login_at.toISOString() : null,
+    createdAt: user.created_at instanceof Date ? user.created_at.toISOString() : new Date(user.created_at).toISOString(),
+    lastLoginAt: user.last_login_at
+      ? (user.last_login_at instanceof Date ? user.last_login_at.toISOString() : new Date(user.last_login_at).toISOString())
+      : null,
   };
+}
+
+function generateTemporaryPassword(length = 12): string {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnopqrstuvwxyz';
+  const digits = '23456789';
+  const symbols = '!@#$%&*';
+  const all = upper + lower + digits + symbols;
+
+  const chars = [
+    upper[crypto.randomInt(upper.length)],
+    lower[crypto.randomInt(lower.length)],
+    digits[crypto.randomInt(digits.length)],
+    symbols[crypto.randomInt(symbols.length)],
+  ];
+
+  for (let i = chars.length; i < length; i++) {
+    chars.push(all[crypto.randomInt(all.length)]);
+  }
+
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+
+  return chars.join('');
 }
 
 export class AuthService {
@@ -213,6 +244,185 @@ export class AuthService {
     const session = await sessionRepository.findById(sessionId);
     if (session && session.user_id === userId) {
       await sessionRepository.revokeSession(sessionId);
+    }
+  }
+
+  public async onboardUserByAdmin(params: {
+    name: string;
+    email: string;
+    password?: string;
+    role?: UserRole;
+  }): Promise<{ user: SafeUser; temporaryPassword?: string }> {
+    const trimmedName = (params.name || '').trim();
+    if (!trimmedName) {
+      throw new Error('Participant name is required');
+    }
+
+    if (!this.validateEmail(params.email)) {
+      throw new Error('Please provide a valid email address');
+    }
+
+    const normalizedEmail = params.email.trim().toLowerCase();
+    const existing = await userRepository.findByEmail(normalizedEmail);
+    if (existing) {
+      throw new Error('An account with this email address already exists');
+    }
+
+    let finalPassword = (params.password || '').trim();
+    let temporaryPassword: string | undefined;
+
+    if (finalPassword) {
+      const policy = validatePasswordPolicy(finalPassword);
+      if (!policy.valid) {
+        throw new Error(policy.message || 'Password does not meet security requirements');
+      }
+    } else {
+      finalPassword = generateTemporaryPassword(12);
+      temporaryPassword = finalPassword;
+    }
+
+    const role: UserRole = params.role === 'admin' ? 'admin' : 'user';
+    const password_hash = await hashPassword(finalPassword);
+
+    const user = await userRepository.createUser({
+      name: trimmedName,
+      email: normalizedEmail,
+      password_hash,
+      role,
+      email_verified: true,
+      status: 'active',
+    });
+
+    return {
+      user: toSafeUser(user),
+      ...(temporaryPassword ? { temporaryPassword } : {}),
+    };
+  }
+
+  public async listAllUsersForAdmin(search?: string): Promise<SafeUser[]> {
+    const users = await userRepository.listUsers(search);
+    return users.map(toSafeUser);
+  }
+
+  public async updateUserByAdmin(
+    actorId: string,
+    targetUserId: string,
+    updates: {
+      name?: string;
+      role?: UserRole;
+      status?: 'active' | 'suspended' | 'deactivated';
+      password?: string;
+      generatePassword?: boolean;
+    }
+  ): Promise<{ user: SafeUser; temporaryPassword?: string }> {
+    const target = await userRepository.findById(targetUserId);
+    if (!target) {
+      throw new Error('User not found');
+    }
+
+    if (actorId === targetUserId) {
+      if (updates.role && updates.role !== 'admin') {
+        throw new Error('You cannot remove your own administrator role');
+      }
+      if (updates.status && updates.status !== 'active') {
+        throw new Error('You cannot deactivate your own account');
+      }
+    }
+
+    let password_hash: string | undefined;
+    let temporaryPassword: string | undefined;
+
+    if (updates.generatePassword) {
+      temporaryPassword = generateTemporaryPassword(12);
+      password_hash = await hashPassword(temporaryPassword);
+    } else if (updates.password && updates.password.trim()) {
+      const policy = validatePasswordPolicy(updates.password.trim());
+      if (!policy.valid) {
+        throw new Error(policy.message || 'Password does not meet security requirements');
+      }
+      password_hash = await hashPassword(updates.password.trim());
+    }
+
+    const updated = await userRepository.updateUser(targetUserId, {
+      ...(updates.name !== undefined ? { name: updates.name } : {}),
+      ...(updates.role !== undefined ? { role: updates.role } : {}),
+      ...(updates.status !== undefined ? { status: updates.status } : {}),
+      ...(password_hash ? { password_hash } : {}),
+    });
+
+    if (!updated) {
+      throw new Error('Failed to update user');
+    }
+
+    if (updates.status && updates.status !== 'active') {
+      await sessionRepository.revokeAllUserSessions(targetUserId);
+    }
+
+    return {
+      user: toSafeUser(updated),
+      ...(temporaryPassword ? { temporaryPassword } : {}),
+    };
+  }
+
+  public async deleteUserByAdmin(actorId: string, targetUserId: string): Promise<void> {
+    if (actorId === targetUserId) {
+      throw new Error('You cannot delete your own account');
+    }
+
+    const target = await userRepository.findById(targetUserId);
+    if (!target) {
+      throw new Error('User not found');
+    }
+
+    await sessionRepository.revokeAllUserSessions(targetUserId);
+    await userRepository.deleteUser(targetUserId);
+  }
+
+  public async ensureBootstrapAdmin(): Promise<void> {
+    const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+    const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+    const adminName = process.env.ADMIN_NAME?.trim() || 'Administrator';
+
+    if (adminEmail) {
+      const existing = await userRepository.findByEmail(adminEmail);
+      if (existing) {
+        if (existing.role !== 'admin') {
+          await userRepository.updateUser(existing.id, { role: 'admin', status: 'active' });
+          console.log(`👑 [Auth] Promoted configured ADMIN_EMAIL (${adminEmail}) to admin.`);
+        }
+        return;
+      }
+
+      if (adminPassword) {
+        const policy = validatePasswordPolicy(adminPassword);
+        if (!policy.valid) {
+          console.warn(`⚠️ [Auth] ADMIN_PASSWORD does not meet password policy: ${policy.message}`);
+          return;
+        }
+        const password_hash = await hashPassword(adminPassword);
+        await userRepository.createUser({
+          name: adminName,
+          email: adminEmail,
+          password_hash,
+          role: 'admin',
+          email_verified: true,
+          status: 'active',
+        });
+        console.log(`👑 [Auth] Bootstrapped initial admin account (${adminEmail}).`);
+        return;
+      }
+    }
+
+    // Ensure existing deployments with users never get locked out when public signup is disabled
+    const adminCount = await userRepository.countByRole('admin');
+    if (adminCount === 0) {
+      const earliest = await userRepository.findEarliestUser();
+      if (earliest) {
+        await userRepository.updateUser(earliest.id, { role: 'admin' });
+        console.log(`👑 [Auth] Promoted earliest existing user (${earliest.email}) to admin.`);
+      } else {
+        console.log('ℹ️ [Auth] No users exist yet. Set ADMIN_EMAIL and ADMIN_PASSWORD env vars to bootstrap an admin account.');
+      }
     }
   }
 }

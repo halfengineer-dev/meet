@@ -215,21 +215,12 @@ class LandingPage extends Component<IProps, IState> {
                         {_isAuthenticated ? (
                             <UserMenu />
                         ) : (
-                            <>
-                                <a
-                                    href="/login"
-                                    className="test-btn-signin"
-                                    style={{ textDecoration: 'none' }}>
-                                    Sign in
-                                </a>
-
-                                <a
-                                    href="/signup"
-                                    className="test-btn-getstarted"
-                                    style={{ textDecoration: 'none' }}>
-                                    Get started free <span className="arrow">→</span>
-                                </a>
-                            </>
+                            <a
+                                href="/login"
+                                className="test-btn-getstarted"
+                                style={{ textDecoration: 'none' }}>
+                                Sign in <span className="arrow">→</span>
+                            </a>
                         )}
                     </div>
                 </div>
@@ -780,7 +771,7 @@ class LandingPage extends Component<IProps, IState> {
 
                             <div className="test-cta-actions">
                                 <button className="test-btn-cta-white" onClick={this._onStartMeeting}>
-                                    Get Started Free →
+                                    Sign In to Start →
                                 </button>
                                 <button
                                     className="test-btn-cta-demo"

@@ -4,6 +4,7 @@ import { createHttpServer } from './server/http';
 import { createSocketServer } from './server/socket';
 import { createWorkers } from './media/worker-manager';
 import { initDatabase } from './db/database';
+import { authService } from './auth/auth-service';
 
 dotenv.config();
 
@@ -14,6 +15,9 @@ async function bootstrap() {
 
   // 1. Initialize Database & Migrations
   await initDatabase();
+
+  // 1b. Ensure an initial admin account exists
+  await authService.ensureBootstrapAdmin();
 
   // 2. Initialize Express
   const app = createHttpServer();

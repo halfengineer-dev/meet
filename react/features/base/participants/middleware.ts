@@ -33,7 +33,13 @@ import { RAISE_HAND_SOUND_ID } from '../../reactions/constants';
 import { RECORDING_OFF_SOUND_ID, RECORDING_ON_SOUND_ID } from '../../recording/constants';
 import { iAmVisitor } from '../../visitors/functions';
 import { APP_WILL_MOUNT, APP_WILL_UNMOUNT } from '../app/actionTypes';
-import { CONFERENCE_JOINED, CONFERENCE_WILL_JOIN } from '../conference/actionTypes';
+import {
+    CONFERENCE_FAILED,
+    CONFERENCE_JOINED,
+    CONFERENCE_LEFT,
+    CONFERENCE_WILL_JOIN,
+    CONFERENCE_WILL_LEAVE
+} from '../conference/actionTypes';
 import { forEachConference, getCurrentConference } from '../conference/functions';
 import { IJitsiConference } from '../conference/reducer';
 import { SET_CONFIG } from '../config/actionTypes';
@@ -62,6 +68,7 @@ import {
     SET_LOCAL_PARTICIPANT_RECORDING_STATUS
 } from './actionTypes';
 import {
+    cancelPendingFakeParticipants,
     localParticipantIdChanged,
     localParticipantJoined,
     localParticipantLeft,
@@ -115,8 +122,15 @@ MiddlewareRegistry.register(store => next => action => {
 
     case APP_WILL_UNMOUNT:
         _unregisterSounds(store);
+        store.dispatch(cancelPendingFakeParticipants());
 
         return _localParticipantLeft(store, next, action);
+
+    case CONFERENCE_FAILED:
+    case CONFERENCE_LEFT:
+    case CONFERENCE_WILL_LEAVE:
+        store.dispatch(cancelPendingFakeParticipants());
+        break;
 
     case CONFERENCE_WILL_JOIN:
         store.dispatch(localParticipantIdChanged(action.conference.myUserId()));
@@ -252,8 +266,9 @@ MiddlewareRegistry.register(store => next => action => {
         }
 
         const { conference } = action;
+
         if (conference) {
-            conference.addCommandListener('ADD_FAKE_PARTICIPANTS', ({ value }: { value: string }, id: string) => {
+            conference.addCommandListener('ADD_FAKE_PARTICIPANTS', ({ value }: { value: string; }, id: string) => {
                 try {
                     // Skip processing our own commands to avoid duplicate additions
                     const localId = getLocalParticipant(store.getState())?.id;
@@ -265,17 +280,44 @@ MiddlewareRegistry.register(store => next => action => {
                     const fakeParticipantsList = JSON.parse(value);
 
                     if (Array.isArray(fakeParticipantsList)) {
+                        const incomingIds = new Set<string>();
+
                         fakeParticipantsList.forEach(p => {
-                            // Only add if this participant doesn't already exist
-                            if (!getParticipantById(store.getState(), p.id)) {
-                                store.dispatch(participantJoined({
-                                    conference,
-                                    fakeParticipant: FakeParticipant.LoadTest,
-                                    id: p.id,
-                                    name: p.name,
-                                    role: 'participant'
-                                }));
+                            if (p?.id) {
+                                incomingIds.add(p.id);
+
+                                // Only add if this participant doesn't already exist
+                                if (!getParticipantById(store.getState(), p.id)) {
+                                    store.dispatch(participantJoined({
+                                        conference,
+                                        fakeParticipant: FakeParticipant.LoadTest,
+                                        id: p.id,
+                                        name: p.name,
+                                        role: 'participant'
+                                    }));
+                                }
                             }
+                        });
+
+                        // Remove any LoadTest fake participants no longer in the authoritative list
+                        const existingFake = store.getState()['features/base/participants'].fakeParticipants;
+                        const toRemove: Array<{ conference?: IJitsiConference; id: string; }> = [];
+
+                        if (existingFake) {
+                            existingFake.forEach((p: any, existingId: string) => {
+                                if (p.fakeParticipant === FakeParticipant.LoadTest && !incomingIds.has(existingId)) {
+                                    toRemove.push({
+                                        conference: p.conference ?? conference,
+                                        id: existingId
+                                    });
+                                }
+                            });
+                        }
+
+                        toRemove.forEach(({ conference: participantConference, id: participantId }) => {
+                            store.dispatch(participantLeft(participantId, participantConference, {
+                                fakeParticipant: FakeParticipant.LoadTest
+                            }));
                         });
                     }
                 } catch (e) {

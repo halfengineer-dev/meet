@@ -4,6 +4,7 @@ export interface IUser {
     email: string;
     avatarUrl: string | null;
     emailVerified: boolean;
+    role?: 'admin' | 'user';
     status: string;
     pmi?: string | null;
     createdAt: string;

@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import { UserRecord } from '../db/types';
+import { UserRecord, UserRole } from '../db/types';
 
 const ACCESS_TOKEN_SECRET = process.env.JWT_ACCESS_SECRET || 'faceonn-dev-access-secret-32-chars-minimum-key';
 const JITSI_JWT_SECRET = process.env.JWT_APP_SECRET || process.env.JITSI_APP_SECRET || 'faceonn-dev-jitsi-secret-key-12345';
@@ -14,6 +14,7 @@ export interface AccessTokenPayload {
   sub: string;
   email: string;
   name: string | null;
+  role: UserRole;
   type: 'access';
   iat?: number;
   exp?: number;
@@ -27,11 +28,12 @@ export function generateRefreshToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-export function generateAccessToken(user: { id: string; email: string; name: string | null }): string {
+export function generateAccessToken(user: { id: string; email: string; name: string | null; role?: UserRole }): string {
   const payload: AccessTokenPayload = {
     sub: user.id,
     email: user.email,
     name: user.name,
+    role: user.role === 'admin' ? 'admin' : 'user',
     type: 'access',
   };
 

@@ -246,3 +246,13 @@ export const OVERWRITE_PARTICIPANTS_NAMES = 'OVERWRITE_PARTICIPANTS_NAMES';
  * }
  */
 export const SET_LOCAL_PARTICIPANT_RECORDING_STATUS = 'SET_LOCAL_PARTICIPANT_RECORDING_STATUS';
+
+/**
+ * Updates the counts of pending gradual fake participant additions and removals.
+ * {
+ *     type: SET_FAKE_PARTICIPANTS_PENDING_COUNTS,
+ *     addCount: number,
+ *     removeCount: number
+ * }
+ */
+export const SET_FAKE_PARTICIPANTS_PENDING_COUNTS = 'SET_FAKE_PARTICIPANTS_PENDING_COUNTS';

@@ -1,3 +1,5 @@
+export type UserRole = 'admin' | 'user';
+
 export interface UserRecord {
   id: string;
   name: string | null;
@@ -5,6 +7,7 @@ export interface UserRecord {
   password_hash: string;
   avatar_url: string | null;
   email_verified: boolean;
+  role: UserRole;
   status: 'active' | 'suspended' | 'deactivated';
   pmi?: string | null;
   created_at: Date;

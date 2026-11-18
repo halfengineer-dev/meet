@@ -79,6 +79,67 @@ export class AuthApiClient {
         });
     }
 
+    public async adminListUsers(
+        accessToken: string,
+        search?: string
+    ): Promise<{ users: IUser[] }> {
+        const query = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
+        return this.request<{ users: IUser[] }>(`/api/admin/users${query}`, {
+            method: 'GET',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
+    public async adminOnboardUser(
+        payload: { name: string; email: string; password?: string; role?: 'admin' | 'user' },
+        accessToken: string
+    ): Promise<{ user: IUser; temporaryPassword?: string }> {
+        return this.request<{ user: IUser; temporaryPassword?: string }>('/api/admin/users', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify(payload)
+        });
+    }
+
+    public async adminUpdateUser(
+        userId: string,
+        payload: {
+            name?: string;
+            role?: 'admin' | 'user';
+            status?: 'active' | 'deactivated' | 'suspended';
+            password?: string;
+            generatePassword?: boolean;
+        },
+        accessToken: string
+    ): Promise<{ user: IUser; temporaryPassword?: string }> {
+        return this.request<{ user: IUser; temporaryPassword?: string }>(
+            `/api/admin/users/${encodeURIComponent(userId)}`,
+            {
+                method: 'PATCH',
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                },
+                body: JSON.stringify(payload)
+            }
+        );
+    }
+
+    public async adminDeleteUser(
+        userId: string,
+        accessToken: string
+    ): Promise<{ success: boolean }> {
+        return this.request<{ success: boolean }>(`/api/admin/users/${encodeURIComponent(userId)}`, {
+            method: 'DELETE',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            }
+        });
+    }
+
     public async getMeetings(accessToken: string): Promise<{ meetings: IMeeting[] }> {
         return this.request<{ meetings: IMeeting[] }>('/api/meetings', {
             method: 'GET',

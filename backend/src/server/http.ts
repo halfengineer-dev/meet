@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import { authRouter } from '../routes/auth-routes';
+import { adminRouter } from '../routes/admin-routes';
 import { meetingRouter } from '../routes/meeting-routes';
 
 export function createHttpServer() {
@@ -36,8 +37,9 @@ export function createHttpServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Authentication & Meeting API routes
+  // Authentication, Admin & Meeting API routes
   app.use('/api/auth', authRouter);
+  app.use('/api/admin', adminRouter);
   app.use('/api/meetings', meetingRouter);
 
   // 404 handler for API routes

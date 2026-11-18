@@ -9,9 +9,10 @@ import {
     getParticipantByIdOrUndefined,
     getParticipantDisplayName,
     hasRaisedHand,
+    isLocalParticipantModerator,
     isParticipantModerator
 } from '../../../base/participants/functions';
-import { IParticipant } from '../../../base/participants/types';
+import { FakeParticipant, IParticipant } from '../../../base/participants/types';
 import {
     getLocalAudioTrack,
     getTrackByMediaTypeAndParticipant,
@@ -174,6 +175,7 @@ function MeetingParticipantItem({
     _disableModeratorIndicator,
     _displayName,
     _local,
+    _localModerator,
     _localVideoOwner,
     _matchesSearch,
     _participant,
@@ -263,11 +265,14 @@ function MeetingParticipantItem({
                 </>
             }
 
-            {!overflowDrawer && (_localVideoOwner && _participant?.fakeParticipant) && (
-                <ParticipantActionEllipsis
-                    accessibilityLabel = { participantActionEllipsisLabel }
-                    onClick = { onContextMenu } />
-            )}
+            {!overflowDrawer && _participant?.fakeParticipant
+                && (_localVideoOwner || (_localModerator && _participant.fakeParticipant === FakeParticipant.LoadTest))
+                && (
+                    <ParticipantActionEllipsis
+                        accessibilityLabel = { participantActionEllipsisLabel }
+                        onClick = { onContextMenu }
+                        participantID = { _participantID } />
+                )}
         </ParticipantItem>
     );
 }
@@ -305,6 +310,7 @@ function _mapStateToProps(state: IReduxState, ownProps: any) {
         _disableModeratorIndicator: Boolean(disableModeratorIndicator),
         _displayName,
         _local: Boolean(participant?.local),
+        _localModerator: isLocalParticipantModerator(state),
         _localVideoOwner: Boolean(ownerId === localParticipantId),
         _matchesSearch,
         _participant: participant,

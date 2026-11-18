@@ -200,6 +200,7 @@ export function getParticipantCount(stateful: IStateful) {
     } = state['features/base/participants'];
 
     let fakeToSubtract = 0;
+
     fakeParticipants.forEach((p: any) => {
         if (p.fakeParticipant !== FakeParticipant.LoadTest) {
             fakeToSubtract++;
@@ -230,6 +231,41 @@ export function getVirtualScreenshareParticipantOwnerId(id: string) {
  */
 export function getFakeParticipants(stateful: IStateful) {
     return toState(stateful)['features/base/participants'].fakeParticipants;
+}
+
+/**
+ * Returns the list of load-test (dummy) fake participants currently in the conference.
+ *
+ * @param {(Function|Object)} stateful - The (whole) redux state, or redux's
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
+ * @returns {Array<IParticipant>} - The list of dummy fake participants.
+ */
+export function getLoadTestFakeParticipants(stateful: IStateful): IParticipant[] {
+    const fakeParticipants = getFakeParticipants(stateful);
+    const result: IParticipant[] = [];
+
+    if (fakeParticipants) {
+        fakeParticipants.forEach((p: IParticipant) => {
+            if (p.fakeParticipant === FakeParticipant.LoadTest) {
+                result.push(p);
+            }
+        });
+    }
+
+    return result;
+}
+
+/**
+ * Returns the count of load-test (dummy) fake participants currently in the conference.
+ *
+ * @param {(Function|Object)} stateful - The (whole) redux state, or redux's
+ * {@code getState} function to be used to retrieve the state
+ * features/base/participants.
+ * @returns {number} - The count of dummy fake participants.
+ */
+export function getLoadTestFakeParticipantsCount(stateful: IStateful): number {
+    return getLoadTestFakeParticipants(stateful).length;
 }
 
 /**

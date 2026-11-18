@@ -3,10 +3,11 @@ import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IReduxState } from '../../app/types';
 import { createMeeting, logout } from '../actions';
-import { getAuthUser, getAccessToken } from '../functions';
+import { getAuthUser, getAccessToken, isAdminUser } from '../functions';
 import { authApiClient } from '../api';
 import { IMeeting, IScheduleMeetingResponse } from '../types';
 import { getRelativeMeetingTime, formatMeetingInvitationText } from '../utils/calendar';
+import AdminOnboardingView from './AdminOnboardingView.web';
 import ScheduleMeetingView from './ScheduleMeetingView.web';
 import ScheduleConfirmationView from './ScheduleConfirmationView.web';
 import MeetingDetailsView from './MeetingDetailsView.web';
@@ -17,8 +18,9 @@ export default function DashboardPage() {
     const dispatch = useDispatch();
     const user = useSelector((state: IReduxState) => getAuthUser(state));
     const accessToken = useSelector((state: IReduxState) => getAccessToken(state));
+    const isAdmin = useSelector((state: IReduxState) => isAdminUser(state));
 
-    const [activeTab, setActiveTab] = useState<'home' | 'meetings' | 'recordings' | 'settings' | 'profile'>('home');
+    const [activeTab, setActiveTab] = useState<'home' | 'meetings' | 'recordings' | 'users' | 'settings' | 'profile'>('home');
     const [meetingsSubTab, setMeetingsSubTab] = useState<'upcoming' | 'previous' | 'personal'>('upcoming');
     const [meetingsViewMode, setMeetingsViewMode] = useState<'list' | 'schedule' | 'confirmation' | 'details' | 'edit'>('list');
     const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
@@ -273,6 +275,24 @@ export default function DashboardPage() {
                             </svg>
                             <span>Recordings</span>
                         </button>
+
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                className={`faceonn-dash-nav-item ${activeTab === 'users' ? 'active' : ''}`}
+                                onClick={() => {
+                                    setActiveTab('users');
+                                    setMeetingsViewMode('list');
+                                }}>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                    <circle cx="8.5" cy="7" r="4" />
+                                    <line x1="20" y1="8" x2="20" y2="14" />
+                                    <line x1="23" y1="11" x2="17" y2="11" />
+                                </svg>
+                                <span>Onboard Users</span>
+                            </button>
+                        )}
 
                         <button
                             type="button"
@@ -1033,6 +1053,11 @@ export default function DashboardPage() {
                     </div>
                 )}
 
+                {/* Tab: Admin Participant Onboarding */}
+                {activeTab === 'users' && isAdmin && (
+                    <AdminOnboardingView />
+                )}
+
                 {/* Tab: Settings */}
                 {activeTab === 'settings' && (
                     <div className="faceonn-dash-body">
@@ -1089,8 +1114,10 @@ export default function DashboardPage() {
                                     <span className="profile-detail-val mono">{pmi}</span>
                                 </div>
                                 <div className="profile-detail-card">
-                                    <span className="profile-detail-label">Plan Tier</span>
-                                    <span className="profile-detail-val" style={{ color: '#0284c7', fontWeight: 700 }}>Free Account</span>
+                                    <span className="profile-detail-label">Account Role</span>
+                                    <span className="profile-detail-val" style={{ color: isAdmin ? '#7c3aed' : '#0284c7', fontWeight: 700 }}>
+                                        {isAdmin ? 'Administrator' : 'Participant'}
+                                    </span>
                                 </div>
                             </div>
                         </div>

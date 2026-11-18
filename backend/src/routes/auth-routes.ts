@@ -42,30 +42,12 @@ const registerLimiter = createRateLimiter({
   message: 'Too many account creation attempts. Please try again later.',
 });
 
-// POST /api/auth/register
-authRouter.post('/register', registerLimiter, async (req, res) => {
-  try {
-    const { name, email, password } = req.body;
-    const meta = {
-      userAgent: req.headers['user-agent'] || null,
-      ipAddress: (req.ip || req.socket.remoteAddress || null) as string | null,
-    };
-
-    const { user, accessToken, refreshToken } = await authService.register(
-      name,
-      email,
-      password,
-      meta
-    );
-
-    setRefreshCookie(res, refreshToken);
-    res.status(201).json({
-      user,
-      accessToken,
-    });
-  } catch (err: any) {
-    res.status(400).json({ error: err.message || 'Registration failed' });
-  }
+// POST /api/auth/register — Public self-registration is disabled; admins onboard participants via /api/admin/users
+authRouter.post('/register', registerLimiter, (_req, res) => {
+  res.status(403).json({
+    error: 'Public sign up is disabled. Please contact an administrator to be onboarded.',
+    code: 'SIGNUP_DISABLED',
+  });
 });
 
 // POST /api/auth/login

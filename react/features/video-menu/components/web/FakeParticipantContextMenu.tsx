@@ -4,9 +4,14 @@ import { useDispatch, useSelector } from 'react-redux';
 
 import TogglePinToStageButton from '../../../../features/video-menu/components/web/TogglePinToStageButton';
 import Avatar from '../../../base/avatar/components/Avatar';
-import { IconPlay } from '../../../base/icons/svg';
-import { isSharedVideoParticipant, isWhiteboardParticipant } from '../../../base/participants/functions';
-import { IParticipant } from '../../../base/participants/types';
+import { IconPlay, IconUserDeleted } from '../../../base/icons/svg';
+import { removeFakeParticipant } from '../../../base/participants/actions';
+import {
+    isLocalParticipantModerator,
+    isSharedVideoParticipant,
+    isWhiteboardParticipant
+} from '../../../base/participants/functions';
+import { FakeParticipant, IParticipant } from '../../../base/participants/types';
 import ContextMenu from '../../../base/ui/components/web/ContextMenu';
 import ContextMenuItemGroup from '../../../base/ui/components/web/ContextMenuItemGroup';
 import SendToSecondScreenButton from '../../../multi-screen/components/SendToSecondScreenButton';
@@ -99,6 +104,7 @@ const FakeParticipantContextMenu = ({
     const { t } = useTranslation();
     const _overflowDrawer: boolean = useSelector(showOverflowDrawer);
     const buttonsWithNotifyClick = useSelector(getParticipantMenuButtonsWithNotifyClick);
+    const isModerator = useSelector(isLocalParticipantModerator);
 
     const notifyClick = useCallback(
         (buttonKey: string, participantId?: string) => {
@@ -128,6 +134,11 @@ const FakeParticipantContextMenu = ({
         dispatch(setWhiteboardOpen(false));
     }, [ setWhiteboardOpen ]);
 
+    const _onRemoveFakeParticipant = useCallback(() => {
+        clickHandler();
+        dispatch(removeFakeParticipant(participant.id));
+    }, [ clickHandler, dispatch, participant.id ]);
+
     const secondScreenSource = useMemo(() => {
         if (isWhiteboardParticipant(participant)) {
             return WHITEBOARD_SECOND_SCREEN_SOURCE;
@@ -146,6 +157,15 @@ const FakeParticipantContextMenu = ({
             } ];
         }
 
+        if (isModerator && participant.fakeParticipant === FakeParticipant.LoadTest) {
+            return [ {
+                accessibilityLabel: 'Remove participant',
+                icon: IconUserDeleted,
+                onClick: _onRemoveFakeParticipant,
+                text: 'Remove'
+            } ];
+        }
+
         if (localVideoOwner) {
             return [ {
                 accessibilityLabel: t('toolbar.stopSharedVideo'),
@@ -154,7 +174,7 @@ const FakeParticipantContextMenu = ({
                 text: t('toolbar.stopSharedVideo')
             } ];
         }
-    }, [ localVideoOwner, participant.fakeParticipant ]);
+    }, [ isModerator, localVideoOwner, participant.fakeParticipant, _onRemoveFakeParticipant ]);
 
     return (
         <ContextMenu
