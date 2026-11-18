@@ -66,6 +66,7 @@ deploy-appbundle:
 		$(BUILD_DIR)/screenshot-capture-worker.min.js.map \
 		$(BUILD_DIR)/vb-inference-worker.min.js \
 		$(BUILD_DIR)/vb-inference-worker.min.js.map \
+		$(BUILD_DIR)/version.json \
 		$(DEPLOY_DIR)
 	cp \
 		$(BUILD_DIR)/close3.min.js \

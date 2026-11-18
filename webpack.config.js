@@ -355,6 +355,7 @@ module.exports = (_env, argv) => {
     const analyzeBundle = Boolean(process.env.ANALYZE_BUNDLE);
     const mode = typeof argv.mode === 'undefined' ? 'production' : argv.mode;
     const isProduction = mode === 'production';
+    const buildVersion = process.env.BUILD_VERSION || String(Date.now());
     const configOptions = {
         detectCircularDeps: Boolean(process.env.DETECT_CIRCULAR_DEPS),
         isProduction
@@ -363,6 +364,30 @@ module.exports = (_env, argv) => {
     const perfHintOptions = {
         analyzeBundle,
         isProduction
+    };
+
+    const emitBuildVersionPlugin = {
+        apply(compiler) {
+            compiler.hooks.thisCompilation.tap('EmitBuildVersionPlugin', compilation => {
+                compilation.hooks.processAssets.tap(
+                    {
+                        name: 'EmitBuildVersionPlugin',
+                        stage: webpack.Compilation.PROCESS_ASSETS_STAGE_ADDITIONAL
+                    },
+                    () => {
+                        const payload = JSON.stringify({
+                            version: buildVersion,
+                            builtAt: new Date().toISOString()
+                        }, null, 2);
+
+                        compilation.emitAsset(
+                            'version.json',
+                            new webpack.sources.RawSource(payload)
+                        );
+                    }
+                );
+            });
+        }
     };
 
     return [
@@ -374,8 +399,10 @@ module.exports = (_env, argv) => {
             plugins: [
                 ...config.plugins,
                 ...getBundleAnalyzerPlugin(analyzeBundle, 'app'),
+                emitBuildVersionPlugin,
                 new webpack.DefinePlugin({
-                    '__DEV__': !isProduction
+                    '__DEV__': !isProduction,
+                    '__FACEONN_BUILD_VERSION__': JSON.stringify(buildVersion)
                 }),
                 new webpack.IgnorePlugin({
                     resourceRegExp: /^canvas$/,

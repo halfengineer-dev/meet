@@ -8,6 +8,7 @@ import OverlayContainer from '../../overlay/components/web/OverlayContainer';
 import PiP from '../../pip/components/PiP';
 
 import { AbstractApp } from './AbstractApp';
+import BuildUpdatePrompt from './BuildUpdatePrompt.web';
 
 // Register middlewares and reducers.
 import '../middlewares';
@@ -48,6 +49,7 @@ export class App extends AbstractApp {
             <JitsiThemeProvider>
                 <GlobalStyles />
                 <ChromeExtensionBanner />
+                <BuildUpdatePrompt />
                 <PiP />
                 { super._createMainElement(component, props) }
             </JitsiThemeProvider>
