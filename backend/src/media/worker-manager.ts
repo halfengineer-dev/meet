@@ -38,3 +38,39 @@ export function getNextWorker(): mediasoup.types.Worker {
   nextWorkerIdx = (nextWorkerIdx + 1) % workers.length;
   return worker;
 }
+
+export async function getWorkersTelemetry(): Promise<Array<{
+  index: number;
+  pid: number;
+  closed: boolean;
+  ruUtime: number | null;
+  ruStime: number | null;
+  ruMaxrss: number | null;
+}>> {
+  const result = [];
+  for (let i = 0; i < workers.length; i++) {
+    const w = workers[i];
+    let ruUtime: number | null = null;
+    let ruStime: number | null = null;
+    let ruMaxrss: number | null = null;
+    if (!w.closed) {
+      try {
+        const usage = await w.getResourceUsage();
+        ruUtime = usage.ru_utime;
+        ruStime = usage.ru_stime;
+        ruMaxrss = usage.ru_maxrss;
+      } catch {
+        // Ignore transient usage read errors
+      }
+    }
+    result.push({
+      index: i,
+      pid: w.pid,
+      closed: w.closed,
+      ruUtime,
+      ruStime,
+      ruMaxrss,
+    });
+  }
+  return result;
+}

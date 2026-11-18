@@ -287,6 +287,41 @@ class SessionRepository {
     return list.sort((a, b) => b.started_at.getTime() - a.started_at.getTime());
   }
 
+  public async listAllActiveSessions(): Promise<MeetingSessionRecord[]> {
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const res = await pool.query(
+        `SELECT * FROM meeting_sessions WHERE status = 'active' ORDER BY started_at DESC`
+      );
+      return res.rows.map((r) => this.normalizeRow(r));
+    }
+
+    const list: MeetingSessionRecord[] = [];
+    for (const s of this.inMemorySessions.values()) {
+      if (s.status === 'active') {
+        list.push({ ...s });
+      }
+    }
+    return list.sort((a, b) => b.started_at.getTime() - a.started_at.getTime());
+  }
+
+  public async listAllSessions(limit = 500): Promise<MeetingSessionRecord[]> {
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const res = await pool.query(
+        'SELECT * FROM meeting_sessions ORDER BY started_at DESC LIMIT $1',
+        [limit]
+      );
+      return res.rows.map((r) => this.normalizeRow(r));
+    }
+
+    const list: MeetingSessionRecord[] = [];
+    for (const s of this.inMemorySessions.values()) {
+      list.push({ ...s });
+    }
+    return list.sort((a, b) => b.started_at.getTime() - a.started_at.getTime()).slice(0, limit);
+  }
+
   public async clearAll(): Promise<void> {
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;

@@ -36,6 +36,7 @@ class MeetingEventBus {
     if (!this.io) return;
     const channel = `meeting-lifecycle:${roomId.toLowerCase().trim()}`;
     this.io.to(channel).emit(event, payload);
+    this.io.to('admin-live-monitoring').emit('admin:live:event', { event, payload });
   }
 }
 

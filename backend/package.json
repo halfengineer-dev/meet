@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "tsx watch src/index.ts",
-    "build": "tsc && cp src/db/schema.sql dist/db/schema.sql",
+    "build": "tsc && cp src/db/schema.sql dist/db/schema.sql && mkdir -p dist/db/migrations && cp -r src/db/migrations/*.sql dist/db/migrations/",
     "test": "NODE_ENV=test vitest run",
     "test:e2e": "NODE_ENV=test playwright test"
   },

@@ -1,5 +1,6 @@
 import { generateRoomWithoutSeparator } from '@jitsi/js-utils/random';
 
+import AdminControlCenter from '../admin/components/AdminControlCenter.web';
 import { setActiveMeetingSession } from '../auth/actions';
 import { authApiClient } from '../auth/api';
 import AuthLoadingScreen from '../auth/components/AuthLoadingScreen.web';
@@ -7,7 +8,7 @@ import DashboardPage from '../auth/components/DashboardPage.web';
 import LandingPage from '../auth/components/LandingPage.web';
 import LoginPage from '../auth/components/LoginPage.web';
 import MeetingWaitingRoom from '../auth/components/MeetingWaitingRoom.web';
-import { getAccessToken, getActiveMeetingSession, isAuthInitializing, isAuthenticated } from '../auth/functions';
+import { getAccessToken, getActiveMeetingSession, isAdminUser, isAuthInitializing, isAuthenticated } from '../auth/functions';
 import { IStateful } from '../base/app/types';
 import { setRoom } from '../base/conference/actions';
 import { isRoomValid } from '../base/conference/functions';
@@ -95,6 +96,27 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
         const route = _getEmptyRoute();
 
         route.component = DashboardPage;
+
+        return route;
+    }
+
+    // 4b. Protected Enterprise Admin Control Center routes: /admin and /admin/*
+    if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+        if (!isUserAuth) {
+            return {
+                component: undefined,
+                href: `/login?redirect=${encodeURIComponent(window.location.pathname)}`
+            };
+        }
+        if (!isAdminUser(state)) {
+            return {
+                component: undefined,
+                href: `/dashboard?error=${encodeURIComponent('Administrator privileges required')}`
+            };
+        }
+        const route = _getEmptyRoute();
+
+        route.component = AdminControlCenter;
 
         return route;
     }

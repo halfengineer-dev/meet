@@ -177,6 +177,28 @@ class SessionRepository {
     return result.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
   }
 
+  public async listAllActiveSessions(limit = 200): Promise<SessionRecord[]> {
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const res = await pool.query(
+        'SELECT * FROM sessions WHERE revoked_at IS NULL AND expires_at > NOW() ORDER BY last_used_at DESC LIMIT $1',
+        [limit]
+      );
+      return res.rows;
+    }
+
+    const now = new Date();
+    const result: SessionRecord[] = [];
+    for (const session of this.inMemorySessions.values()) {
+      if (!session.revoked_at && session.expires_at > now) {
+        result.push({ ...session });
+      }
+    }
+    return result
+      .sort((a, b) => b.last_used_at.getTime() - a.last_used_at.getTime())
+      .slice(0, limit);
+  }
+
   public async clearAll(): Promise<void> {
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;

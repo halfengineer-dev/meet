@@ -1,5 +1,19 @@
 export type UserRole = 'admin' | 'user';
 
+export type PlatformAdminRole =
+  | 'super_admin'
+  | 'platform_admin'
+  | 'support_admin'
+  | 'billing_admin'
+  | 'technical_admin';
+
+export type OrganizationRole =
+  | 'org_owner'
+  | 'org_admin'
+  | 'meeting_admin'
+  | 'member'
+  | 'guest';
+
 export interface UserRecord {
   id: string;
   name: string | null;
@@ -8,11 +22,16 @@ export interface UserRecord {
   avatar_url: string | null;
   email_verified: boolean;
   role: UserRole;
+  admin_role?: PlatformAdminRole | null;
+  organization_id?: string | null;
+  country?: string | null;
   status: 'active' | 'suspended' | 'deactivated';
   pmi?: string | null;
   created_at: Date;
   updated_at: Date;
   last_login_at: Date | null;
+  last_active_at?: Date | null;
+  deleted_at?: Date | null;
 }
 
 export interface SessionRecord {
@@ -82,6 +101,9 @@ export interface MeetingRecord {
   ended_at: Date | null;
   deleted_at: Date | null;
   expires_at: Date | null;
+  organization_id?: string | null;
+  is_disabled?: boolean;
+  disabled_reason?: string | null;
   created_at: Date;
   updated_at: Date;
 }

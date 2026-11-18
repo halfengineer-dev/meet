@@ -277,21 +277,32 @@ export default function DashboardPage() {
                         </button>
 
                         {isAdmin && (
-                            <button
-                                type="button"
-                                className={`faceonn-dash-nav-item ${activeTab === 'users' ? 'active' : ''}`}
-                                onClick={() => {
-                                    setActiveTab('users');
-                                    setMeetingsViewMode('list');
-                                }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                    <circle cx="8.5" cy="7" r="4" />
-                                    <line x1="20" y1="8" x2="20" y2="14" />
-                                    <line x1="23" y1="11" x2="17" y2="11" />
-                                </svg>
-                                <span>Onboard Users</span>
-                            </button>
+                            <>
+                                <a
+                                    className="faceonn-dash-nav-item"
+                                    href="/admin">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                    </svg>
+                                    <span>Admin Control Center</span>
+                                </a>
+
+                                <button
+                                    type="button"
+                                    className={`faceonn-dash-nav-item ${activeTab === 'users' ? 'active' : ''}`}
+                                    onClick={() => {
+                                        setActiveTab('users');
+                                        setMeetingsViewMode('list');
+                                    }}>
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                        <circle cx="8.5" cy="7" r="4" />
+                                        <line x1="20" y1="8" x2="20" y2="14" />
+                                        <line x1="23" y1="11" x2="17" y2="11" />
+                                    </svg>
+                                    <span>Onboard Users</span>
+                                </button>
+                            </>
                         )}
 
                         <button

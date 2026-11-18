@@ -1,7 +1,8 @@
 import crypto from 'crypto';
 import { userRepository } from '../db/repositories/user-repository';
 import { sessionRepository } from '../db/repositories/session-repository';
-import { UserRecord, UserRole, SessionRecord } from '../db/types';
+import { adminStore } from '../db/repositories/admin-store';
+import { PlatformAdminRole, UserRecord, UserRole, SessionRecord } from '../db/types';
 import { hashPassword, verifyPassword, validatePasswordPolicy } from './password';
 import {
   generateAccessToken,
@@ -22,23 +23,36 @@ export interface SafeUser {
   avatarUrl: string | null;
   emailVerified: boolean;
   role: UserRole;
+  adminRole?: PlatformAdminRole | null;
+  organizationId?: string | null;
+  country?: string | null;
   status: string;
   createdAt: string;
   lastLoginAt: string | null;
+  lastActiveAt?: string | null;
 }
 
 export function toSafeUser(user: UserRecord): SafeUser {
+  const role: UserRole = user.role === 'admin' ? 'admin' : 'user';
+  const adminRole: PlatformAdminRole | null = user.admin_role ?? (role === 'admin' ? 'super_admin' : null);
+
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     avatarUrl: user.avatar_url,
     emailVerified: user.email_verified,
-    role: user.role === 'admin' ? 'admin' : 'user',
+    role,
+    adminRole,
+    organizationId: user.organization_id || null,
+    country: user.country || null,
     status: user.status,
     createdAt: user.created_at instanceof Date ? user.created_at.toISOString() : new Date(user.created_at).toISOString(),
     lastLoginAt: user.last_login_at
       ? (user.last_login_at instanceof Date ? user.last_login_at.toISOString() : new Date(user.last_login_at).toISOString())
+      : null,
+    lastActiveAt: user.last_active_at
+      ? (user.last_active_at instanceof Date ? user.last_active_at.toISOString() : new Date(user.last_active_at).toISOString())
       : null,
   };
 }
@@ -140,17 +154,53 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await userRepository.findByEmail(normalizedEmail);
     if (!user) {
+      await adminStore.insertSecurityEvent({
+        event_type: 'login_failed',
+        severity: 'low',
+        user_id: null,
+        email: normalizedEmail,
+        ip_address: meta.ipAddress || null,
+        user_agent: meta.userAgent || null,
+        country: null,
+        metadata: { reason: 'user_not_found' },
+      }).catch(() => {});
       throw new Error('Invalid email or password');
     }
 
     const isMatch = await verifyPassword(password, user.password_hash);
     if (!isMatch) {
+      await adminStore.insertSecurityEvent({
+        event_type: 'login_failed',
+        severity: 'medium',
+        user_id: user.id,
+        email: normalizedEmail,
+        ip_address: meta.ipAddress || null,
+        user_agent: meta.userAgent || null,
+        country: user.country || null,
+        metadata: { reason: 'invalid_password' },
+      }).catch(() => {});
       throw new Error('Invalid email or password');
     }
 
     if (user.status !== 'active') {
+      await adminStore.insertSecurityEvent({
+        event_type: 'login_blocked_disabled',
+        severity: 'medium',
+        user_id: user.id,
+        email: normalizedEmail,
+        ip_address: meta.ipAddress || null,
+        user_agent: meta.userAgent || null,
+        country: user.country || null,
+        metadata: { status: user.status },
+      }).catch(() => {});
       throw new Error('Your account is currently disabled. Please contact support.');
     }
+
+    // Detect new device / user agent
+    const prevSessions = await sessionRepository.listUserSessions(user.id);
+    const isNewDevice = Boolean(
+      meta.userAgent && prevSessions.length > 0 && !prevSessions.some((s) => s.user_agent === meta.userAgent)
+    );
 
     // Create session
     const refreshToken = generateRefreshToken();
@@ -167,6 +217,17 @@ export class AuthService {
 
     await userRepository.updateLastLogin(user.id);
     user.last_login_at = new Date();
+
+    await adminStore.insertSecurityEvent({
+      event_type: isNewDevice ? 'new_device_login' : 'login_success',
+      severity: isNewDevice ? 'low' : 'info',
+      user_id: user.id,
+      email: user.email,
+      ip_address: meta.ipAddress || null,
+      user_agent: meta.userAgent || null,
+      country: user.country || null,
+      metadata: { isNewDevice },
+    }).catch(() => {});
 
     const accessToken = generateAccessToken(user);
 
@@ -196,6 +257,16 @@ export class AuthService {
     if (session.revoked_at) {
       console.warn(`[Security Alert] Revoked refresh token reused! Revoking family: ${session.family_id}`);
       await sessionRepository.revokeFamily(session.family_id);
+      await adminStore.insertSecurityEvent({
+        event_type: 'token_reuse',
+        severity: 'high',
+        user_id: session.user_id,
+        email: null,
+        ip_address: meta.ipAddress || null,
+        user_agent: meta.userAgent || null,
+        country: null,
+        metadata: { familyId: session.family_id, sessionId: session.id },
+      }).catch(() => {});
       throw new Error('Refresh token reuse detected. Session terminated for security.');
     }
 

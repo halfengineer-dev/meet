@@ -19,7 +19,9 @@ export function getAuthUser(state: IReduxState): IUser | null {
 }
 
 export function isAdminUser(state: IReduxState): boolean {
-    return getAuthUser(state)?.role === 'admin';
+    const user = getAuthUser(state);
+
+    return Boolean(user?.role === 'admin' || user?.isAdmin || user?.adminRole || user?.orgRole);
 }
 
 export function isAuthenticated(state: IReduxState): boolean {

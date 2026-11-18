@@ -22,6 +22,8 @@ import { meetingCalendarService } from './meeting-calendar-service';
 import { meetingRecurrenceService } from './meeting-recurrence-service';
 import { meetingAuthorizationService } from './meeting-authorization-service';
 import { meetingEventBus } from './meeting-events';
+import { organizationService } from '../admin/organization-service';
+import { configService } from '../admin/config-service';
 
 function logLifecycle(event: string, data: Record<string, unknown>): void {
   if (process.env.NODE_ENV === 'test') return;
@@ -99,20 +101,35 @@ export class MeetingService {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 3600 * 1000); // Instant room expires in 24h or on end
 
-    const meeting = await meetingRepository.createMeeting({
-      room_id: roomId,
-      title: meetingTitle,
-      owner_user_id: user.id,
-      status: 'active',
-      series_status: 'active',
-      is_scheduled: false,
-      meeting_type: 'instant',
+    const enforced = await organizationService.enforceMeetingPoliciesForUser(user.id, {
+      durationMinutes: 60,
+      isRecurring: false,
+      hasPasscode: false,
       settings: {
         ...DEFAULT_MEETING_SETTINGS,
         waitingRoomEnabled: false,
         joinBeforeHost: true,
         requireAuthentication: false,
       },
+    });
+    const [screenShareFlag, chatFlag] = await Promise.all([
+      configService.isFeatureEnabled('screen_sharing', enforced.organizationId),
+      configService.isFeatureEnabled('in_meeting_chat', enforced.organizationId),
+    ]);
+    enforced.settings.allowScreenSharing = enforced.settings.allowScreenSharing && screenShareFlag;
+    enforced.settings.allowChat = enforced.settings.allowChat && chatFlag;
+
+    const meeting = await meetingRepository.createMeeting({
+      room_id: roomId,
+      title: meetingTitle,
+      owner_user_id: user.id,
+      organization_id: enforced.organizationId,
+      status: 'active',
+      series_status: 'active',
+      is_scheduled: false,
+      meeting_type: 'instant',
+      duration_minutes: enforced.durationMinutes,
+      settings: enforced.settings,
       expires_at: expiresAt,
     });
 
@@ -280,15 +297,34 @@ export class MeetingService {
       ? new Date(Date.now() + 365 * 86400000)
       : new Date(scheduledAt.getTime() + durationMinutes * 60000 + 30 * 86400000);
 
+    // 7b. Enforce Organization Policies & Platform Feature Flags on backend
+    const enforcedSchedule = await organizationService.enforceMeetingPoliciesForUser(user.id, {
+      durationMinutes,
+      isRecurring,
+      hasPasscode: Boolean(passcodeHash),
+      settings,
+    });
+    const [screenShareEnabled, chatEnabled, cloudRecEnabled] = await Promise.all([
+      configService.isFeatureEnabled('screen_sharing', enforcedSchedule.organizationId),
+      configService.isFeatureEnabled('in_meeting_chat', enforcedSchedule.organizationId),
+      configService.isFeatureEnabled('cloud_recording', enforcedSchedule.organizationId),
+    ]);
+    enforcedSchedule.settings.allowScreenSharing = enforcedSchedule.settings.allowScreenSharing && screenShareEnabled;
+    enforcedSchedule.settings.allowChat = enforcedSchedule.settings.allowChat && chatEnabled;
+    if (!cloudRecEnabled && enforcedSchedule.settings.autoRecording === 'cloud') {
+      enforcedSchedule.settings.autoRecording = 'none';
+    }
+
     // 8. Persist Scheduled Meeting Series
     const meeting = await meetingRepository.createMeeting({
       room_id: roomId,
       title,
       owner_user_id: user.id,
+      organization_id: enforcedSchedule.organizationId,
       status: 'scheduled',
       series_status: 'active',
       scheduled_at: scheduledAt,
-      duration_minutes: durationMinutes,
+      duration_minutes: enforcedSchedule.durationMinutes,
       timezone,
       description: data.description,
       is_scheduled: true,
@@ -298,12 +334,12 @@ export class MeetingService {
       recurrence_rule: recurrenceRule,
       recurrence_end_at: recurrenceEndAt,
       recurrence_count: recurrenceCount,
-      settings,
+      settings: enforcedSchedule.settings,
       passcode_hash: passcodeHash,
-      join_before_host_minutes: settings.joinBeforeHostMinutes ?? 0,
-      audio_type: settings.audioType || 'computer',
-      auto_recording: settings.autoRecording || 'none',
-      registration_required: Boolean(settings.registrationRequired),
+      join_before_host_minutes: enforcedSchedule.settings.joinBeforeHostMinutes ?? 0,
+      audio_type: enforcedSchedule.settings.audioType || 'computer',
+      auto_recording: enforcedSchedule.settings.autoRecording || 'none',
+      registration_required: Boolean(enforcedSchedule.settings.registrationRequired),
       alternative_host_ids: alternativeHostIds,
       expires_at: expiresAt,
     });

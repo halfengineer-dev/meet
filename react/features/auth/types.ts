@@ -5,10 +5,20 @@ export interface IUser {
     avatarUrl: string | null;
     emailVerified: boolean;
     role?: 'admin' | 'user';
+    adminRole?: string | null;
+    isAdmin?: boolean;
+    adminScope?: 'platform' | 'organization' | null;
+    platformRole?: string | null;
+    orgRole?: string | null;
+    scopedOrganizationId?: string | null;
+    permissions?: string[];
+    organizationId?: string | null;
+    country?: string | null;
     status: string;
     pmi?: string | null;
     createdAt: string;
     lastLoginAt: string | null;
+    lastActiveAt?: string | null;
 }
 
 export interface IActiveMeetingSession {

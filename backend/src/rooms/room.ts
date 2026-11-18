@@ -56,6 +56,38 @@ export class Room {
     return this.participants.size === 0;
   }
 
+  public getTelemetry() {
+    let transports = 0;
+    let producers = 0;
+    let consumers = 0;
+    let audioProducers = 0;
+    let videoProducers = 0;
+
+    this.participants.forEach((p) => {
+      if (p.sendTransport) transports += 1;
+      if (p.recvTransport) transports += 1;
+      producers += p.producers.size;
+      consumers += p.consumers.size;
+      p.producers.forEach((prod) => {
+        if (prod.kind === 'audio') audioProducers += 1;
+        if (prod.kind === 'video') videoProducers += 1;
+      });
+    });
+
+    return {
+      roomId: this.id,
+      routerId: this.router.id,
+      routerClosed: this.router.closed,
+      participantCount: this.participants.size,
+      participants: this.getParticipantList(),
+      transports,
+      producers,
+      consumers,
+      audioProducers,
+      videoProducers,
+    };
+  }
+
   public close() {
     this.router.close();
   }

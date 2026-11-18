@@ -4,9 +4,12 @@ import cookieParser from 'cookie-parser';
 import { authRouter } from '../routes/auth-routes';
 import { adminRouter } from '../routes/admin-routes';
 import { meetingRouter } from '../routes/meeting-routes';
+import { apiMetricsMiddleware } from '../middleware/api-metrics';
 
 export function createHttpServer() {
   const app = express();
+
+  app.use(apiMetricsMiddleware);
 
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
@@ -24,7 +27,7 @@ export function createHttpServer() {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Correlation-Id', 'X-Admin-Confirm'],
     })
   );
 

@@ -31,6 +31,10 @@ class RoomManager {
       console.log(`[Rooms] Room destroyed: ${roomId}`);
     }
   }
+
+  public getActiveRoomsTelemetry() {
+    return Array.from(this.rooms.values()).map((room) => room.getTelemetry());
+  }
 }
 
 export const roomManager = new RoomManager();

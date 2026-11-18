@@ -158,7 +158,7 @@ async function performHardRefresh(targetVersion: string): Promise<void> {
     try {
         // 3. Revalidate HTML + loaded same-origin scripts and stylesheets to overwrite HTTP disk cache
         const origin = window.location.origin;
-        const urlsToRevalidate = new Set<string>([ window.location.href ]);
+        const urlsToRevalidate = new Set<string>([window.location.href]);
 
         if (window.location.pathname !== '/') {
             urlsToRevalidate.add(`${origin}/`);
@@ -213,9 +213,9 @@ async function performHardRefresh(targetVersion: string): Promise<void> {
  */
 export default function BuildUpdatePrompt() {
     const { classes } = useStyles();
-    const [ availableVersion, setAvailableVersion ] = useState<string | null>(null);
-    const [ dismissedUntil, setDismissedUntil ] = useState<number>(0);
-    const [ isRefreshing, setIsRefreshing ] = useState<boolean>(false);
+    const [availableVersion, setAvailableVersion] = useState<string | null>(null);
+    const [dismissedUntil, setDismissedUntil] = useState<number>(0);
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
     const lastCheckRef = useRef<number>(0);
 
     const currentVersion = typeof __FACEONN_BUILD_VERSION__ === 'string'
@@ -273,7 +273,7 @@ export default function BuildUpdatePrompt() {
         } catch (_) {
             // Silently ignore transient network/offline errors
         }
-    }, [ currentVersion, isDev ]);
+    }, [currentVersion, isDev]);
 
     useEffect(() => {
         if (isDev || !currentVersion) {
@@ -305,7 +305,7 @@ export default function BuildUpdatePrompt() {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('focus', handleFocus);
         };
-    }, [ checkForUpdate, currentVersion, isDev ]);
+    }, [checkForUpdate, currentVersion, isDev]);
 
     const handleRefreshClick = useCallback(() => {
         if (isRefreshing) {
@@ -313,7 +313,7 @@ export default function BuildUpdatePrompt() {
         }
         setIsRefreshing(true);
         performHardRefresh(availableVersion || String(Date.now()));
-    }, [ availableVersion, isRefreshing ]);
+    }, [availableVersion, isRefreshing]);
 
     const handleDismissClick = useCallback(() => {
         setDismissedUntil(Date.now() + DISMISS_SNOOZE_MS);
@@ -336,7 +336,7 @@ export default function BuildUpdatePrompt() {
         }, remaining);
 
         return () => window.clearTimeout(timerId);
-    }, [ dismissedUntil ]);
+    }, [dismissedUntil]);
 
     if (!availableVersion || Date.now() < dismissedUntil) {
         return null;
@@ -344,45 +344,45 @@ export default function BuildUpdatePrompt() {
 
     return (
         <div
-            aria-live = 'polite'
-            className = { classes.container }
-            role = 'alertdialog'>
-            <div className = { classes.header }>
-                <div className = { classes.iconWrap }>
+            aria-live='polite'
+            className={classes.container}
+            role='alertdialog'>
+            <div className={classes.header}>
+                <div className={classes.iconWrap}>
                     <svg
-                        fill = 'none'
-                        height = '18'
-                        stroke = 'currentColor'
-                        strokeLinecap = 'round'
-                        strokeLinejoin = 'round'
-                        strokeWidth = '2.2'
-                        viewBox = '0 0 24 24'
-                        width = '18'>
-                        <polyline points = '23 4 23 10 17 10' />
-                        <polyline points = '1 20 1 14 7 14' />
-                        <path d = 'M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15' />
+                        fill='none'
+                        height='18'
+                        stroke='currentColor'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth='2.2'
+                        viewBox='0 0 24 24'
+                        width='18'>
+                        <polyline points='23 4 23 10 17 10' />
+                        <polyline points='1 20 1 14 7 14' />
+                        <path d='M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15' />
                     </svg>
                 </div>
-                <div className = { classes.textWrap }>
-                    <h4 className = { classes.title }>New Update Available</h4>
-                    <p className = { classes.message }>
+                <div className={classes.textWrap}>
+                    <h4 className={classes.title}>New Update Available</h4>
+                    <p className={classes.message}>
                         A newer version of Faceonn is live. Refresh now to clear cached files and load the latest updates.
                     </p>
                 </div>
             </div>
-            <div className = { classes.actions }>
+            <div className={classes.actions}>
                 <button
-                    className = { classes.laterBtn }
-                    disabled = { isRefreshing }
-                    onClick = { handleDismissClick }
-                    type = 'button'>
+                    className={classes.laterBtn}
+                    disabled={isRefreshing}
+                    onClick={handleDismissClick}
+                    type='button'>
                     Later
                 </button>
                 <button
-                    className = { classes.refreshBtn }
-                    disabled = { isRefreshing }
-                    onClick = { handleRefreshClick }
-                    type = 'button'>
+                    className={classes.refreshBtn}
+                    disabled={isRefreshing}
+                    onClick={handleRefreshClick}
+                    type='button'>
                     {isRefreshing ? 'Refreshing...' : 'Refresh Now'}
                 </button>
             </div>

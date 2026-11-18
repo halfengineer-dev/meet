@@ -4,7 +4,9 @@ import { createHttpServer } from './server/http';
 import { createSocketServer } from './server/socket';
 import { createWorkers } from './media/worker-manager';
 import { initDatabase } from './db/database';
+import { adminStore } from './db/repositories/admin-store';
 import { authService } from './auth/auth-service';
+import { pushSystemLog } from './middleware/api-metrics';
 
 dotenv.config();
 
@@ -15,9 +17,11 @@ async function bootstrap() {
 
   // 1. Initialize Database & Migrations
   await initDatabase();
+  await adminStore.ensurePostgresSeeds();
 
   // 1b. Ensure an initial admin account exists
   await authService.ensureBootstrapAdmin();
+  pushSystemLog('info', 'bootstrap', 'Faceonn backend initialized');
 
   // 2. Initialize Express
   const app = createHttpServer();

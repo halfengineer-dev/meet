@@ -223,8 +223,8 @@ export class MeetingAuthorizationService {
       meeting.timezone
     );
 
-    // 1. Series cancelled
-    if (meeting.series_status === 'cancelled' || meeting.status === 'cancelled') {
+    // 1. Series cancelled or link disabled by administrator
+    if (meeting.is_disabled || meeting.series_status === 'cancelled' || meeting.status === 'cancelled') {
       return {
         status: 'cancelled',
         roomId: meeting.room_id,

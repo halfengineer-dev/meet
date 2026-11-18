@@ -2,11 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { IReduxState } from '../../app/types';
 import { logout } from '../actions';
-import { getAuthUser } from '../functions';
+import { getAuthUser, isAdminUser } from '../functions';
 
 export default function UserMenu() {
     const dispatch = useDispatch();
     const user = useSelector((state: IReduxState) => getAuthUser(state));
+    const isAdmin = useSelector((state: IReduxState) => isAdminUser(state));
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -65,6 +66,20 @@ export default function UserMenu() {
                         </svg>
                         Dashboard
                     </button>
+
+                    {isAdmin && (
+                        <button
+                            className="faceonn-dropdown-item"
+                            onClick={() => {
+                                setIsOpen(false);
+                                window.location.href = '/admin';
+                            }}>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            </svg>
+                            Admin Control Center
+                        </button>
+                    )}
 
                     <button
                         className="faceonn-dropdown-item logout"

@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { authService, toSafeUser } from '../auth/auth-service';
+import { resolveAdminContext } from '../admin/rbac';
 import { requireAuth, AuthenticatedRequest } from '../auth/middleware';
 import { createRateLimiter } from '../auth/rate-limiter';
 import { REFRESH_TOKEN_EXPIRATION_DAYS } from '../auth/tokens';
@@ -117,12 +118,23 @@ authRouter.post('/logout', async (req, res) => {
 });
 
 // GET /api/auth/me
-authRouter.get('/me', requireAuth, (req: AuthenticatedRequest, res) => {
+authRouter.get('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
   if (!req.user) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
   }
-  res.json({ user: toSafeUser(req.user) });
+  const adminCtx = await resolveAdminContext(req.user);
+  res.json({
+    user: {
+      ...toSafeUser(req.user),
+      isAdmin: Boolean(adminCtx),
+      adminScope: adminCtx ? (adminCtx.isPlatformAdmin ? 'platform' : 'organization') : null,
+      platformRole: adminCtx?.platformRole || null,
+      orgRole: adminCtx?.orgRole || null,
+      scopedOrganizationId: adminCtx?.scopedOrganizationId || null,
+      permissions: adminCtx ? Array.from(adminCtx.permissions) : [],
+    },
+  });
 });
 
 // GET /api/auth/sessions

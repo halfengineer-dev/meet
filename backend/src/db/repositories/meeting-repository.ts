@@ -74,6 +74,9 @@ class MeetingRepository {
       ended_at: row.ended_at ? new Date(row.ended_at) : null,
       deleted_at: row.deleted_at ? new Date(row.deleted_at) : null,
       expires_at: row.expires_at ? new Date(row.expires_at) : null,
+      organization_id: row.organization_id || null,
+      is_disabled: Boolean(row.is_disabled),
+      disabled_reason: row.disabled_reason || null,
       created_at: new Date(row.created_at),
       updated_at: new Date(row.updated_at),
     };
@@ -84,6 +87,7 @@ class MeetingRepository {
     room_id: string;
     title: string;
     owner_user_id: string;
+    organization_id?: string | null;
     status?: 'active' | 'ended' | 'scheduled' | 'cancelled';
     series_status?: SeriesStatus;
     scheduled_at?: Date | null;
@@ -138,6 +142,9 @@ class MeetingRepository {
       ended_at: null,
       deleted_at: null,
       expires_at: data.expires_at || null,
+      organization_id: data.organization_id || null,
+      is_disabled: false,
+      disabled_reason: null,
       created_at: now,
       updated_at: now,
     };
@@ -146,16 +153,17 @@ class MeetingRepository {
       const pool = getDatabasePool()!;
       await pool.query(
         `INSERT INTO meetings 
-         (id, room_id, title, owner_user_id, status, series_status, scheduled_at, duration_minutes, timezone, 
+         (id, room_id, title, owner_user_id, organization_id, status, series_status, scheduled_at, duration_minutes, timezone, 
           description, is_scheduled, meeting_type, recurrence_series_id, recurrence_type, recurrence_rule, 
           recurrence_end_at, recurrence_count, settings, passcode_hash, join_before_host_minutes, audio_type,
           auto_recording, registration_required, alternative_host_ids, expires_at, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)`,
         [
           record.id,
           record.room_id,
           record.title,
           record.owner_user_id,
+          record.organization_id,
           record.status,
           record.series_status,
           record.scheduled_at,
@@ -243,8 +251,9 @@ class MeetingRepository {
              recurrence_type = $10, recurrence_rule = $11, recurrence_end_at = $12, recurrence_count = $13,
              join_before_host_minutes = $14, audio_type = $15, auto_recording = $16,
              registration_required = $17, alternative_host_ids = $18,
-             ended_at = $19, deleted_at = $20, expires_at = $21, updated_at = $22
-         WHERE id = $23`,
+             ended_at = $19, deleted_at = $20, expires_at = $21, updated_at = $22,
+             organization_id = $23, is_disabled = $24, disabled_reason = $25
+         WHERE id = $26`,
         [
           updated.title,
           updated.status,
@@ -268,6 +277,9 @@ class MeetingRepository {
           updated.deleted_at,
           updated.expires_at,
           updated.updated_at,
+          updated.organization_id || null,
+          Boolean(updated.is_disabled),
+          updated.disabled_reason || null,
           id,
         ]
       );
@@ -455,6 +467,46 @@ class MeetingRepository {
 
     const p = this.inMemoryParticipants.get(key);
     return p ? { ...p } : null;
+  }
+
+  public async listAllMeetings(organizationId?: string | null): Promise<MeetingRecord[]> {
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const res = organizationId
+        ? await pool.query(
+            'SELECT * FROM meetings WHERE deleted_at IS NULL AND organization_id = $1 ORDER BY created_at DESC',
+            [organizationId]
+          )
+        : await pool.query('SELECT * FROM meetings WHERE deleted_at IS NULL ORDER BY created_at DESC');
+      return res.rows.map((r) => this.normalizeRecord(r));
+    }
+
+    const result: MeetingRecord[] = [];
+    for (const m of this.inMemoryMeetings.values()) {
+      if (m.deleted_at) continue;
+      if (organizationId && m.organization_id !== organizationId) continue;
+      result.push({ ...m });
+    }
+    return result.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+  }
+
+  public async listMeetingParticipants(meetingId: string): Promise<MeetingParticipantRecord[]> {
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const res = await pool.query(
+        'SELECT * FROM meeting_participants WHERE meeting_id = $1 ORDER BY created_at ASC',
+        [meetingId]
+      );
+      return res.rows;
+    }
+
+    const result: MeetingParticipantRecord[] = [];
+    for (const p of this.inMemoryParticipants.values()) {
+      if (p.meeting_id === meetingId) {
+        result.push({ ...p });
+      }
+    }
+    return result.sort((a, b) => a.created_at.getTime() - b.created_at.getTime());
   }
 
   public async clearAll(): Promise<void> {
