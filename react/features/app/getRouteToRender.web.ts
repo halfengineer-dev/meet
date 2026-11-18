@@ -194,10 +194,15 @@ export async function _getRouteToRender(stateful: IStateful, dispatch?: IStore['
                 dispatch(setJWT(data.token));
 
                 if (jitsiRoomName !== reduxRoom) {
-                    // Updating Redux room triggers _setRoom -> _navigate with isolated Jitsi room!
                     dispatch(setRoom(jitsiRoomName));
 
-                    return _getEmptyRoute();
+                    return _getWebConferenceRoute({
+                        ...state,
+                        'features/base/conference': {
+                            ...state['features/base/conference'],
+                            room: jitsiRoomName
+                        }
+                    });
                 }
             } catch (err: any) {
                 logger.warn('Meeting access gated by backend policy:', err.code, err.message);

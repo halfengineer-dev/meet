@@ -136,23 +136,22 @@ export default function MeetingWaitingRoom() {
 
         dispatch(setActiveMeetingSession(sessionPayload));
         dispatch(setJWT(jwtToken));
-        dispatch(setRoom(sessionPayload.jitsiRoomName));
 
-        // Let Redux state reflect the new JWT + isolated occurrence Jitsi room, then ensure Conference mounts
-        setTimeout(() => {
-            if (app && typeof app._navigate === 'function') {
-                dispatch((d: any, getState: () => IReduxState) => {
-                    const currentState = getState();
-                    _getRouteToRender(currentState, d).then((route: any) => {
-                        if (route) {
-                            d(appWillNavigate(app, route));
-                            app._navigate(route);
-                        }
-                    });
+        if (sessionPayload.jitsiRoomName !== reduxRoom) {
+            // Dispatching setRoom triggers _setRoom middleware -> _navigate into Conference on the isolated room!
+            dispatch(setRoom(sessionPayload.jitsiRoomName));
+        } else if (app && typeof app._navigate === 'function') {
+            dispatch((d: any, getState: () => IReduxState) => {
+                const currentState = getState();
+                _getRouteToRender(currentState, d).then((route: any) => {
+                    if (route) {
+                        d(appWillNavigate(app, route));
+                        app._navigate(route);
+                    }
                 });
-            }
-        }, 80);
-    }, [app, dispatch]);
+            });
+        }
+    }, [app, dispatch, reduxRoom]);
 
     const attemptTokenJoin = useCallback(async (inputPasscode?: string) => {
         if (!accessToken) {
