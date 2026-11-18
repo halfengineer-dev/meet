@@ -1,296 +1,186 @@
-import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import { MeetingSessionRecord } from '../types';
+import { SessionRecord } from '../types';
 import { getDatabasePool, isUsingPostgres } from '../database';
 
-/**
- * Dual-mode repository for live Jitsi conference sessions.
- * Enforces at most ONE active session per meeting occurrence:
- * - In PostgreSQL: uses row-level transaction locking + partial UNIQUE index
- *   `idx_unique_active_session_per_occurrence` (`WHERE status = 'active'`).
- * - In-memory fallback (dev/test only): uses an atomic lookup/insert guard.
- */
 class SessionRepository {
-  private inMemorySessions: Map<string, MeetingSessionRecord> = new Map();
+  private inMemorySessions: Map<string, SessionRecord> = new Map();
 
-  private normalizeRow(row: any): MeetingSessionRecord {
-    return {
-      id: row.id,
-      meeting_id: row.meeting_id,
-      occurrence_id: row.occurrence_id,
-      jitsi_room_name: row.jitsi_room_name,
-      status: row.status,
-      started_at: new Date(row.started_at),
-      ended_at: row.ended_at ? new Date(row.ended_at) : null,
-      started_by_user_id: row.started_by_user_id || null,
-      ended_by_user_id: row.ended_by_user_id || null,
-      termination_reason: row.termination_reason || null,
-      created_at: new Date(row.created_at),
-    };
-  }
-
-  /**
-   * Generates an isolated internal Jitsi MUC room name for a specific occurrence/session,
-   * while preserving the permanent Faceonn public room link (e.g. faceonn.com/jd0-fmc-29f).
-   */
-  public buildIsolatedJitsiRoomName(publicRoomId: string): string {
-    const cleanPublic = publicRoomId.toLowerCase().replace(/[^a-z0-9-]/g, '');
-    const suffix = crypto.randomBytes(5).toString('hex');
-    return `faceonn-${cleanPublic}-${suffix}`;
-  }
-
-  /**
-   * Atomically creates an active session for an occurrence, OR returns the already-active session
-   * if two hosts/alternative hosts click Start simultaneously.
-   */
-  public async createOrGetActiveSession(params: {
-    meetingId: string;
-    occurrenceId: string;
-    publicRoomId: string;
-    startedByUserId: string | null;
-  }): Promise<{ session: MeetingSessionRecord; created: boolean }> {
+  public async createSession(data: {
+    id?: string;
+    user_id: string;
+    refresh_token_hash: string;
+    family_id?: string;
+    expires_at: Date;
+    user_agent?: string | null;
+    ip_address?: string | null;
+  }): Promise<SessionRecord> {
+    const id = data.id || uuidv4();
+    const family_id = data.family_id || uuidv4();
     const now = new Date();
-    const id = uuidv4();
-    const jitsiRoomName = this.buildIsolatedJitsiRoomName(params.publicRoomId);
 
-    if (isUsingPostgres()) {
-      const pool = getDatabasePool()!;
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-
-        // Lock occurrence row so concurrent start/cancel/end serialize cleanly
-        const occRes = await client.query(
-          'SELECT id, status FROM meeting_occurrences WHERE id = $1 FOR UPDATE',
-          [params.occurrenceId]
-        );
-        if (!occRes.rows[0]) {
-          await client.query('ROLLBACK');
-          throw new Error('Meeting occurrence not found');
-        }
-        const occStatus = occRes.rows[0].status;
-        if (occStatus === 'cancelled' || occStatus === 'ended') {
-          await client.query('ROLLBACK');
-          const err = new Error(`Cannot start an occurrence that is already ${occStatus}`);
-          (err as any).statusCode = 409;
-          (err as any).code = occStatus === 'cancelled' ? 'MEETING_CANCELLED' : 'OCCURRENCE_ENDED';
-          throw err;
-        }
-
-        // Check for existing active session
-        const existingRes = await client.query(
-          `SELECT * FROM meeting_sessions
-           WHERE occurrence_id = $1 AND status = 'active'
-           LIMIT 1`,
-          [params.occurrenceId]
-        );
-        if (existingRes.rows[0]) {
-          await client.query('COMMIT');
-          return { session: this.normalizeRow(existingRes.rows[0]), created: false };
-        }
-
-        const insertRes = await client.query(
-          `INSERT INTO meeting_sessions
-           (id, meeting_id, occurrence_id, jitsi_room_name, status, started_at, started_by_user_id, created_at)
-           VALUES ($1, $2, $3, $4, 'active', $5, $6, $5)
-           RETURNING *`,
-          [id, params.meetingId, params.occurrenceId, jitsiRoomName, now, params.startedByUserId]
-        );
-
-        await client.query(
-          `UPDATE meeting_occurrences
-           SET status = 'active',
-               session_id = $1,
-               actual_started_at = COALESCE(actual_started_at, $2),
-               started_by_user_id = COALESCE(started_by_user_id, $3),
-               updated_at = $2
-           WHERE id = $4`,
-          [id, now, params.startedByUserId, params.occurrenceId]
-        );
-
-        await client.query('COMMIT');
-        return { session: this.normalizeRow(insertRes.rows[0]), created: true };
-      } catch (err: any) {
-        await client.query('ROLLBACK').catch(() => {});
-        // Unique constraint violation on active session -> fetch winning session
-        if (err?.code === '23505') {
-          const existing = await this.findActiveByOccurrenceId(params.occurrenceId);
-          if (existing) {
-            return { session: existing, created: false };
-          }
-        }
-        throw err;
-      } finally {
-        client.release();
-      }
-    }
-
-    // In-memory single-process atomic path
-    for (const s of this.inMemorySessions.values()) {
-      if (s.occurrence_id === params.occurrenceId && s.status === 'active') {
-        return { session: { ...s }, created: false };
-      }
-    }
-
-    const record: MeetingSessionRecord = {
+    const record: SessionRecord = {
       id,
-      meeting_id: params.meetingId,
-      occurrence_id: params.occurrenceId,
-      jitsi_room_name: jitsiRoomName,
-      status: 'active',
-      started_at: now,
-      ended_at: null,
-      started_by_user_id: params.startedByUserId,
-      ended_by_user_id: null,
-      termination_reason: null,
+      user_id: data.user_id,
+      refresh_token_hash: data.refresh_token_hash,
+      family_id,
+      expires_at: data.expires_at,
+      revoked_at: null,
       created_at: now,
+      last_used_at: now,
+      user_agent: data.user_agent || null,
+      ip_address: data.ip_address || null,
     };
 
-    this.inMemorySessions.set(record.id, { ...record });
-    return { session: record, created: true };
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      await pool.query(
+        `INSERT INTO sessions (id, user_id, refresh_token_hash, family_id, expires_at, revoked_at, created_at, last_used_at, user_agent, ip_address)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          record.id,
+          record.user_id,
+          record.refresh_token_hash,
+          record.family_id,
+          record.expires_at,
+          record.revoked_at,
+          record.created_at,
+          record.last_used_at,
+          record.user_agent,
+          record.ip_address,
+        ]
+      );
+    } else {
+      this.inMemorySessions.set(record.id, { ...record });
+    }
+
+    return record;
   }
 
-  public async findActiveByOccurrenceId(occurrenceId: string): Promise<MeetingSessionRecord | null> {
+  public async findByTokenHash(tokenHash: string): Promise<SessionRecord | null> {
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;
       const res = await pool.query(
-        `SELECT * FROM meeting_sessions
-         WHERE occurrence_id = $1 AND status = 'active'
-         LIMIT 1`,
-        [occurrenceId]
+        'SELECT * FROM sessions WHERE refresh_token_hash = $1 LIMIT 1',
+        [tokenHash]
       );
-      return res.rows[0] ? this.normalizeRow(res.rows[0]) : null;
+      return res.rows[0] || null;
     }
 
-    for (const s of this.inMemorySessions.values()) {
-      if (s.occurrence_id === occurrenceId && s.status === 'active') {
-        return { ...s };
+    for (const session of this.inMemorySessions.values()) {
+      if (session.refresh_token_hash === tokenHash) {
+        return { ...session };
       }
     }
     return null;
   }
 
-  public async findActiveByMeetingId(meetingId: string): Promise<MeetingSessionRecord | null> {
+  public async findById(id: string): Promise<SessionRecord | null> {
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;
-      const res = await pool.query(
-        `SELECT * FROM meeting_sessions
-         WHERE meeting_id = $1 AND status = 'active'
-         ORDER BY started_at DESC
-         LIMIT 1`,
-        [meetingId]
-      );
-      return res.rows[0] ? this.normalizeRow(res.rows[0]) : null;
+      const res = await pool.query('SELECT * FROM sessions WHERE id = $1 LIMIT 1', [id]);
+      return res.rows[0] || null;
     }
 
-    for (const s of this.inMemorySessions.values()) {
-      if (s.meeting_id === meetingId && s.status === 'active') {
-        return { ...s };
-      }
-    }
-    return null;
+    const session = this.inMemorySessions.get(id);
+    return session ? { ...session } : null;
   }
 
-  public async findById(id: string): Promise<MeetingSessionRecord | null> {
-    if (isUsingPostgres()) {
-      const pool = getDatabasePool()!;
-      const res = await pool.query('SELECT * FROM meeting_sessions WHERE id = $1 LIMIT 1', [id]);
-      return res.rows[0] ? this.normalizeRow(res.rows[0]) : null;
-    }
-    const s = this.inMemorySessions.get(id);
-    return s ? { ...s } : null;
+  public async rotateRefreshToken(
+    oldSessionId: string,
+    newTokenHash: string,
+    newExpiresAt: Date
+  ): Promise<SessionRecord | null> {
+    const oldSession = await this.findById(oldSessionId);
+    if (!oldSession) return null;
+
+    // Mark old session as revoked
+    await this.revokeSession(oldSessionId);
+
+    // Create new session in the same family
+    return this.createSession({
+      user_id: oldSession.user_id,
+      refresh_token_hash: newTokenHash,
+      family_id: oldSession.family_id,
+      expires_at: newExpiresAt,
+      user_agent: oldSession.user_agent,
+      ip_address: oldSession.ip_address,
+    });
   }
 
-  public async endSession(
-    sessionId: string,
-    endedByUserId: string | null,
-    reason = 'host_ended'
-  ): Promise<MeetingSessionRecord | null> {
+  public async revokeSession(id: string): Promise<void> {
     const now = new Date();
 
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;
-      const res = await pool.query(
-        `UPDATE meeting_sessions
-         SET status = 'ended',
-             ended_at = COALESCE(ended_at, $1),
-             ended_by_user_id = COALESCE(ended_by_user_id, $2),
-             termination_reason = COALESCE(termination_reason, $3)
-         WHERE id = $4
-         RETURNING *`,
-        [now, endedByUserId, reason, sessionId]
-      );
-      return res.rows[0] ? this.normalizeRow(res.rows[0]) : null;
+      await pool.query('UPDATE sessions SET revoked_at = $1 WHERE id = $2', [now, id]);
+    } else {
+      const session = this.inMemorySessions.get(id);
+      if (session) {
+        session.revoked_at = now;
+      }
     }
-
-    const existing = this.inMemorySessions.get(sessionId);
-    if (!existing) return null;
-    if (existing.status !== 'ended') {
-      existing.status = 'ended';
-      existing.ended_at = now;
-      existing.ended_by_user_id = endedByUserId;
-      existing.termination_reason = reason;
-    }
-    return { ...existing };
   }
 
-  public async endAllActiveForMeeting(
-    meetingId: string,
-    endedByUserId: string | null,
-    reason = 'series_cancelled'
-  ): Promise<number> {
+  public async revokeFamily(familyId: string): Promise<void> {
     const now = new Date();
 
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;
-      const res = await pool.query(
-        `UPDATE meeting_sessions
-         SET status = 'ended',
-             ended_at = $1,
-             ended_by_user_id = $2,
-             termination_reason = $3
-         WHERE meeting_id = $4 AND status = 'active'`,
-        [now, endedByUserId, reason, meetingId]
+      await pool.query(
+        'UPDATE sessions SET revoked_at = $1 WHERE family_id = $2 AND revoked_at IS NULL',
+        [now, familyId]
       );
-      return res.rowCount || 0;
-    }
-
-    let count = 0;
-    for (const s of this.inMemorySessions.values()) {
-      if (s.meeting_id === meetingId && s.status === 'active') {
-        s.status = 'ended';
-        s.ended_at = now;
-        s.ended_by_user_id = endedByUserId;
-        s.termination_reason = reason;
-        count++;
+    } else {
+      for (const session of this.inMemorySessions.values()) {
+        if (session.family_id === familyId && !session.revoked_at) {
+          session.revoked_at = now;
+        }
       }
     }
-    return count;
   }
 
-  public async listByMeetingId(meetingId: string): Promise<MeetingSessionRecord[]> {
+  public async revokeAllUserSessions(userId: string): Promise<void> {
+    const now = new Date();
+
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      await pool.query(
+        'UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND revoked_at IS NULL',
+        [now, userId]
+      );
+    } else {
+      for (const session of this.inMemorySessions.values()) {
+        if (session.user_id === userId && !session.revoked_at) {
+          session.revoked_at = now;
+        }
+      }
+    }
+  }
+
+  public async listUserSessions(userId: string): Promise<SessionRecord[]> {
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;
       const res = await pool.query(
-        'SELECT * FROM meeting_sessions WHERE meeting_id = $1 ORDER BY started_at DESC',
-        [meetingId]
+        'SELECT * FROM sessions WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW() ORDER BY created_at DESC',
+        [userId]
       );
-      return res.rows.map((r) => this.normalizeRow(r));
+      return res.rows;
     }
 
-    const list: MeetingSessionRecord[] = [];
-    for (const s of this.inMemorySessions.values()) {
-      if (s.meeting_id === meetingId) {
-        list.push({ ...s });
+    const now = new Date();
+    const result: SessionRecord[] = [];
+    for (const session of this.inMemorySessions.values()) {
+      if (session.user_id === userId && !session.revoked_at && session.expires_at > now) {
+        result.push({ ...session });
       }
     }
-    return list.sort((a, b) => b.started_at.getTime() - a.started_at.getTime());
+    return result.sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
   }
 
   public async clearAll(): Promise<void> {
     if (isUsingPostgres()) {
       const pool = getDatabasePool()!;
-      await pool.query('DELETE FROM meeting_sessions');
+      await pool.query('DELETE FROM sessions');
     }
     this.inMemorySessions.clear();
   }
