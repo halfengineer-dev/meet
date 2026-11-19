@@ -316,8 +316,31 @@ export class MeetingAuthorizationService {
       .sort((a, b) => (b.actual_ended_at?.getTime() || 0) - (a.actual_ended_at?.getTime() || 0));
     const lastEndedOccurrence = endedOccurrences[0] || null;
 
-    // 5. If there is an active session right now -> ACTIVE
+    // 5. If there is an active session right now
     if (activeSession && activeOccurrence && activeOccurrence.status === 'active') {
+      const hostHasJoined = Boolean(activeSession.host_joined_at);
+      const canParticipantJoinNow = Boolean(hostHasJoined || meeting.settings.joinBeforeHost);
+
+      // If user is a non-host (attendee / guest) and host has NOT joined the room yet,
+      // and meeting does NOT permit joinBeforeHost:
+      // The participant MUST be held in waiting_for_host state until host enters the room!
+      if (!roles.isHost && !canParticipantJoinNow) {
+        return {
+          status: 'waiting_for_host',
+          roomId: meeting.room_id,
+          meeting,
+          hostName,
+          ...roles,
+          activeOccurrence,
+          activeSession,
+          nextOccurrence: activeOccurrence,
+          lastEndedOccurrence,
+          canJoinBeforeHostNow: false,
+          recurrenceSummary,
+          countdownSeconds: 0,
+        };
+      }
+
       return {
         status: 'active',
         roomId: meeting.room_id,

@@ -255,6 +255,34 @@ export class AuthApiClient {
         });
     }
 
+    public async notifyHostJoined(
+        meetingId: string,
+        accessToken: string,
+        sessionId?: string
+    ): Promise<{ success: boolean; session?: IMeetingSessionInfo }> {
+        return this.request(`/api/meetings/${encodeURIComponent(meetingId)}/host-joined`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ sessionId })
+        });
+    }
+
+    public async notifyHostLeft(
+        meetingId: string,
+        accessToken: string,
+        sessionId?: string
+    ): Promise<{ success: boolean }> {
+        return this.request(`/api/meetings/${encodeURIComponent(meetingId)}/host-left`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({ sessionId })
+        });
+    }
+
     public async getOccurrences(
         meetingId: string,
         accessToken: string

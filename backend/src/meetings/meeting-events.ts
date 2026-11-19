@@ -32,6 +32,14 @@ class MeetingEventBus {
     this.broadcastToRoom(payload.roomId, 'meeting:participant:joined', payload);
   }
 
+  public emitHostJoinedRoom(payload: MeetingLifecycleEventPayload & { userId: string }): void {
+    this.broadcastToRoom(payload.roomId, 'meeting:host:joined', payload);
+  }
+
+  public emitHostLeftRoom(payload: MeetingLifecycleEventPayload & { userId: string }): void {
+    this.broadcastToRoom(payload.roomId, 'meeting:host:left', payload);
+  }
+
   private broadcastToRoom(roomId: string, event: string, payload: unknown): void {
     if (!this.io) return;
     const channel = `meeting-lifecycle:${roomId.toLowerCase().trim()}`;

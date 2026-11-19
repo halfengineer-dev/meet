@@ -167,7 +167,8 @@ export default function DashboardPage() {
     };
 
     const handleStartOrJoinMeeting = async (meeting: IMeeting) => {
-        if (accessToken && meeting.ownerId === user?.id && meeting.isScheduled && meeting.status === 'scheduled') {
+        const isHost = Boolean(user?.id && (meeting.ownerId === user?.id || (meeting.alternativeHostIds && meeting.alternativeHostIds.includes(user?.id))));
+        if (accessToken && isHost && meeting.isScheduled && meeting.status === 'scheduled') {
             try {
                 await authApiClient.startMeeting(meeting.id, accessToken);
             } catch (_) {
@@ -668,7 +669,9 @@ export default function DashboardPage() {
                                                             type="button"
                                                             className="meeting-row-btn"
                                                             onClick={() => handleStartOrJoinMeeting(m)}>
-                                                            Start →
+                                                            {Boolean(user?.id && (m.ownerId === user.id || (m.alternativeHostIds && m.alternativeHostIds.includes(user.id))))
+                                                                ? (m.status === 'active' ? 'Rejoin →' : 'Start →')
+                                                                : 'Join →'}
                                                         </button>
                                                     </div>
                                                 );
@@ -919,7 +922,9 @@ export default function DashboardPage() {
                                                                     type="button"
                                                                     className="schedule-btn-action blue"
                                                                     onClick={() => handleStartOrJoinMeeting(m)}>
-                                                                    Start
+                                                                    {Boolean(user?.id && (m.ownerId === user.id || (m.alternativeHostIds && m.alternativeHostIds.includes(user.id))))
+                                                                        ? (m.status === 'active' ? 'Rejoin' : 'Start')
+                                                                        : 'Join'}
                                                                 </button>
                                                                 <button
                                                                     type="button"

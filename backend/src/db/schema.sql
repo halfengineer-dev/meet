@@ -138,9 +138,14 @@ CREATE TABLE IF NOT EXISTS meeting_sessions (
     ended_at TIMESTAMP WITH TIME ZONE,
     started_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     ended_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    host_joined_at TIMESTAMP WITH TIME ZONE,
+    host_in_room BOOLEAN NOT NULL DEFAULT FALSE,
     termination_reason VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE meeting_sessions ADD COLUMN IF NOT EXISTS host_joined_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE meeting_sessions ADD COLUMN IF NOT EXISTS host_in_room BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS idx_meeting_sessions_meeting_id ON meeting_sessions(meeting_id);
 CREATE INDEX IF NOT EXISTS idx_meeting_sessions_occurrence_id ON meeting_sessions(occurrence_id);

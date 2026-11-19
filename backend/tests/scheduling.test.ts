@@ -155,6 +155,7 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
       // Host enters without passcode -> Success
       const hostJoin = await meetingService.getMeetingOrJoin(hostUser.id, scheduled.meeting.room_id);
       expect(hostJoin.role).toBe('owner');
+      await meetingService.recordHostJoined(hostUser.id, scheduled.meeting.id);
 
       // Attendee attempts without passcode -> 403 PASSCODE_REQUIRED
       await expect(
@@ -175,7 +176,7 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
       expect(attendeeJoin.role).toBe('participant');
     });
 
-    it('enforces join-before-host: attendees wait until host starts or enters the meeting', async () => {
+    it('enforces join-before-host: attendees wait until host starts and ENTERS the room', async () => {
       const futureDate = new Date(Date.now() + 3600 * 1000).toISOString();
       const scheduled = await meetingService.scheduleMeeting(hostUser.id, {
         title: 'Moderated Workshop',
@@ -192,8 +193,16 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
         meetingService.getMeetingOrJoin(attendeeUser.id, scheduled.meeting.room_id)
       ).rejects.toThrow('The host has not started this meeting yet. Please wait for the host.');
 
-      // Host starts the meeting
+      // Host starts the meeting from dashboard (session created, but host has not joined the room yet!)
       await meetingService.startMeeting(hostUser.id, scheduled.meeting.id);
+
+      // Attendee tries to join when host clicked Start from dashboard but hasn't entered room -> STILL REJECTED!
+      await expect(
+        meetingService.getMeetingOrJoin(attendeeUser.id, scheduled.meeting.room_id)
+      ).rejects.toThrow('The host has not joined this meeting yet. Please wait for the host.');
+
+      // Host joins the room
+      await meetingService.recordHostJoined(hostUser.id, scheduled.meeting.id);
 
       // Now attendee can join
       const attendeeJoin = await meetingService.getMeetingOrJoin(attendeeUser.id, scheduled.meeting.room_id);
@@ -243,8 +252,9 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
         expect(err.code).toBe('HOST_NOT_STARTED');
       }
 
-      // Once host explicitly starts, attendee is now prompted for passcode
+      // Once host explicitly starts and enters room, attendee is now prompted for passcode
       await meetingService.startMeeting(hostUser.id, scheduled.meeting.id);
+      await meetingService.recordHostJoined(hostUser.id, scheduled.meeting.id);
       try {
         await meetingService.getMeetingOrJoin(attendeeUser.id, scheduled.meeting.room_id);
         expect.unreachable('Should have rejected with PASSCODE_REQUIRED');
@@ -289,8 +299,9 @@ describe('Faceonn Meeting Scheduling System Unit & Integration Tests', () => {
         expect(err.code).toBe('WAITING_FOR_HOST');
       }
 
-      // Host starts meeting
+      // Host starts meeting and joins room
       await meetingService.startMeeting(hostUser.id, scheduled.meeting.id);
+      await meetingService.recordHostJoined(hostUser.id, scheduled.meeting.id);
 
       // Guest blocked without passcode
       try {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth, optionalAuth, AuthenticatedRequest } from '../auth/middleware';
 import { meetingService } from '../meetings/meeting-service';
 import { meetingCalendarService } from '../meetings/meeting-calendar-service';
+import { meetingRepository } from '../db/repositories/meeting-repository';
 import {
   MeetingAlternativeHostRecord,
   MeetingOccurrenceRecord,
@@ -357,6 +358,55 @@ meetingRouter.post('/:id/occurrences/:occurrenceId/start', async (req: Authentic
     res.status(err.statusCode || 400).json({
       error: err.message || 'Failed to start occurrence',
       code: err.code || 'START_FAILED',
+    });
+  }
+});
+
+// POST /api/meetings/:id/host-joined - Confirm that the host/alternative host has entered the room
+meetingRouter.post('/:id/host-joined', async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { sessionId } = req.body || {};
+
+    let meeting = await meetingRepository.findById(id);
+    if (!meeting) {
+      meeting = await meetingRepository.findByRoomId(id);
+    }
+    const meetingId = meeting ? meeting.id : id;
+
+    const result = await meetingService.recordHostJoined(user.id, meetingId, sessionId);
+    res.json({
+      success: true,
+      session: sanitizeSession(result.session),
+    });
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({
+      error: err.message || 'Failed to record host joined',
+      code: err.code || 'HOST_JOIN_FAILED',
+    });
+  }
+});
+
+// POST /api/meetings/:id/host-left - Record that the host has left the room
+meetingRouter.post('/:id/host-left', async (req: AuthenticatedRequest, res) => {
+  try {
+    const user = req.user!;
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const { sessionId } = req.body || {};
+
+    let meeting = await meetingRepository.findById(id);
+    if (!meeting) {
+      meeting = await meetingRepository.findByRoomId(id);
+    }
+    const meetingId = meeting ? meeting.id : id;
+
+    const result = await meetingService.recordHostLeft(user.id, meetingId, sessionId);
+    res.json(result);
+  } catch (err: any) {
+    res.status(err.statusCode || 400).json({
+      error: err.message || 'Failed to record host left',
+      code: err.code || 'HOST_LEAVE_FAILED',
     });
   }
 });

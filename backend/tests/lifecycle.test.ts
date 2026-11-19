@@ -101,13 +101,25 @@ describe('Enterprise Meeting Lifecycle, Recurrence & Host Takeover Prevention', 
       meetingService.startMeeting(randomUser.id, scheduled.meeting.id)
     ).rejects.toThrow('Unauthorized');
 
-    // 2. On Monday, host starts the meeting
+    // 2. On Monday, host starts the meeting from dashboard (not in room yet)
     const monStart = await meetingService.startMeeting(ownerUser.id, scheduled.meeting.id);
     expect(monStart.occurrence.id).toBe(monOcc.id);
     expect(monStart.occurrence.status).toBe('active');
     expect(monStart.session.jitsi_room_name).toContain(`faceonn-${scheduled.meeting.room_id}-`);
     expect(decodeToken(monStart.token).context.user.moderator).toBe(true);
     expect(decodeToken(monStart.token).room).toBe(monStart.session.jitsi_room_name);
+
+    // 2b. While host has clicked Start on dashboard but NOT joined the room yet:
+    // Participants and guests CANNOT join and cannot become host!
+    await expect(
+      meetingService.getMeetingOrJoin(participantUser.id, scheduled.meeting.room_id)
+    ).rejects.toThrow('The host has not joined this meeting yet. Please wait for the host.');
+    await expect(
+      meetingService.guestJoinMeeting(scheduled.meeting.room_id, 'Eager Guest')
+    ).rejects.toThrow('The host has not joined this meeting yet. Please wait for the host.');
+
+    // Host actually enters/joins the room
+    await meetingService.recordHostJoined(ownerUser.id, scheduled.meeting.id);
 
     // 3. Participants (authenticated + guest) join Monday's active session — NEVER moderator
     const participantMonJoin = await meetingService.getMeetingOrJoin(
@@ -159,6 +171,9 @@ describe('Enterprise Meeting Lifecycle, Recurrence & Host Takeover Prevention', 
     // CRITICAL: Wednesday MUST get a fresh isolated Jitsi room, NOT Monday's stale room!
     expect(wedStart.session.id).not.toBe(monStart.session.id);
     expect(wedStart.session.jitsi_room_name).not.toBe(monStart.session.jitsi_room_name);
+
+    // Host enters Wednesday's room
+    await meetingService.recordHostJoined(ownerUser.id, scheduled.meeting.id);
 
     // Participants join Wednesday's fresh occurrence normally
     const participantWedJoin = await meetingService.getMeetingOrJoin(

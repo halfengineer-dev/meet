@@ -134,6 +134,8 @@ export interface MeetingSessionRecord {
   ended_at: Date | null;
   started_by_user_id: string | null;
   ended_by_user_id: string | null;
+  host_joined_at: Date | null;
+  host_in_room: boolean;
   termination_reason: string | null;
   created_at: Date;
 }

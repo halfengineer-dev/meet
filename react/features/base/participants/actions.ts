@@ -31,7 +31,8 @@ import {
     SET_LOCAL_PARTICIPANT_RECORDING_STATUS
 } from './actionTypes';
 import {
-    DISCO_REMOTE_CONTROL_FEATURE
+    DISCO_REMOTE_CONTROL_FEATURE,
+    PARTICIPANT_ROLE
 } from './constants';
 import {
     getLoadTestFakeParticipants,
@@ -399,19 +400,32 @@ export function participantPresenceChanged(id: string, presence: string) {
  */
 export function participantRoleChanged(id: string, role: string) {
     return (dispatch: IStore['dispatch'], getState: IStore['getState']) => {
-        const oldParticipantRole = getParticipantById(getState(), id)?.role;
+        const state = getState();
+        const localParticipant = getLocalParticipant(state);
+        let effectiveRole = role;
+
+        // Security enforcement: If backend active session explicitly designates local user as non-host,
+        // NEVER allow local participant to be elevated to moderator by XMPP/MUC defaults!
+        if (id === localParticipant?.id) {
+            const activeSession = state['features/auth']?.activeMeetingSession;
+            if (activeSession && !activeSession.isHost && role === PARTICIPANT_ROLE.MODERATOR) {
+                effectiveRole = PARTICIPANT_ROLE.PARTICIPANT;
+            }
+        }
+
+        const oldParticipantRole = getParticipantById(state, id)?.role;
 
         dispatch(participantUpdated({
             id,
-            role
+            role: effectiveRole
         }));
 
-        if (oldParticipantRole !== role) {
+        if (oldParticipantRole !== effectiveRole) {
             dispatch({
                 type: PARTICIPANT_ROLE_CHANGED,
                 participant: {
                     id,
-                    role
+                    role: effectiveRole
                 }
             });
         }

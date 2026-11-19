@@ -24,6 +24,8 @@ class SessionRepository {
       ended_at: row.ended_at ? new Date(row.ended_at) : null,
       started_by_user_id: row.started_by_user_id || null,
       ended_by_user_id: row.ended_by_user_id || null,
+      host_joined_at: row.host_joined_at ? new Date(row.host_joined_at) : null,
+      host_in_room: Boolean(row.host_in_room),
       termination_reason: row.termination_reason || null,
       created_at: new Date(row.created_at),
     };
@@ -91,8 +93,8 @@ class SessionRepository {
 
         const insertRes = await client.query(
           `INSERT INTO meeting_sessions
-           (id, meeting_id, occurrence_id, jitsi_room_name, status, started_at, started_by_user_id, created_at)
-           VALUES ($1, $2, $3, $4, 'active', $5, $6, $5)
+           (id, meeting_id, occurrence_id, jitsi_room_name, status, started_at, started_by_user_id, host_joined_at, host_in_room, created_at)
+           VALUES ($1, $2, $3, $4, 'active', $5, $6, NULL, FALSE, $5)
            RETURNING *`,
           [id, params.meetingId, params.occurrenceId, jitsiRoomName, now, params.startedByUserId]
         );
@@ -142,12 +144,55 @@ class SessionRepository {
       ended_at: null,
       started_by_user_id: params.startedByUserId,
       ended_by_user_id: null,
+      host_joined_at: null,
+      host_in_room: false,
       termination_reason: null,
       created_at: now,
     };
 
     this.inMemorySessions.set(record.id, { ...record });
     return { session: record, created: true };
+  }
+
+  public async markHostJoined(sessionId: string): Promise<MeetingSessionRecord | null> {
+    const now = new Date();
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const res = await pool.query(
+        `UPDATE meeting_sessions
+         SET host_joined_at = COALESCE(host_joined_at, $1),
+             host_in_room = TRUE
+         WHERE id = $2
+         RETURNING *`,
+        [now, sessionId]
+      );
+      return res.rows[0] ? this.normalizeRow(res.rows[0]) : null;
+    }
+
+    const existing = this.inMemorySessions.get(sessionId);
+    if (!existing) return null;
+    existing.host_joined_at = existing.host_joined_at || now;
+    existing.host_in_room = true;
+    return { ...existing };
+  }
+
+  public async markHostLeft(sessionId: string): Promise<MeetingSessionRecord | null> {
+    if (isUsingPostgres()) {
+      const pool = getDatabasePool()!;
+      const res = await pool.query(
+        `UPDATE meeting_sessions
+         SET host_in_room = FALSE
+         WHERE id = $1
+         RETURNING *`,
+        [sessionId]
+      );
+      return res.rows[0] ? this.normalizeRow(res.rows[0]) : null;
+    }
+
+    const existing = this.inMemorySessions.get(sessionId);
+    if (!existing) return null;
+    existing.host_in_room = false;
+    return { ...existing };
   }
 
   public async findActiveByOccurrenceId(occurrenceId: string): Promise<MeetingSessionRecord | null> {

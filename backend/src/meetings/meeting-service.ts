@@ -459,6 +459,8 @@ export class MeetingService {
     joinBeforeHost?: boolean;
     joinBeforeHostMinutes?: number;
     canJoinBeforeHostNow?: boolean;
+    isHostJoined?: boolean;
+    isHostInRoom?: boolean;
     passcodeEnabled?: boolean;
     waitingRoomEnabled?: boolean;
     requireAuthentication?: boolean;
@@ -522,6 +524,8 @@ export class MeetingService {
       joinBeforeHost: m.settings.joinBeforeHost,
       joinBeforeHostMinutes: m.join_before_host_minutes,
       canJoinBeforeHostNow: res.canJoinBeforeHostNow,
+      isHostJoined: Boolean(res.activeSession?.host_joined_at),
+      isHostInRoom: Boolean(res.activeSession?.host_in_room),
       passcodeEnabled: Boolean(m.settings.passcodeEnabled && m.passcode_hash),
       waitingRoomEnabled: m.settings.waitingRoomEnabled,
       requireAuthentication: m.settings.requireAuthentication,
@@ -568,7 +572,8 @@ export class MeetingService {
   public async startMeeting(
     userId: string,
     meetingId: string,
-    occurrenceId?: string
+    occurrenceId?: string,
+    options?: { hostJoined?: boolean }
   ): Promise<{
     meeting: MeetingRecord;
     occurrence: MeetingOccurrenceRecord;
@@ -647,12 +652,19 @@ export class MeetingService {
     }
 
     // Atomically create or retrieve the single active session for this occurrence
-    const { session, created } = await meetingSessionRepository.createOrGetActiveSession({
+    let { session, created } = await meetingSessionRepository.createOrGetActiveSession({
       meetingId: meeting.id,
       occurrenceId: targetOcc.id,
       publicRoomId: meeting.room_id,
       startedByUserId: user.id,
     });
+
+    if (options?.hostJoined) {
+      const updatedSession = await meetingSessionRepository.markHostJoined(session.id);
+      if (updatedSession) {
+        session = updatedSession;
+      }
+    }
 
     const now = new Date();
     const updatedOcc = await occurrenceRepository.updateOccurrence(targetOcc.id, {
@@ -708,6 +720,114 @@ export class MeetingService {
       token,
       role,
     };
+  }
+
+  /**
+   * Host entry confirmation: marks that the host/alternative host has connected to the room.
+   * This unblocks waiting participants who are restricted by joinBeforeHost = false.
+   */
+  public async recordHostJoined(
+    userId: string,
+    meetingId: string,
+    sessionId?: string
+  ): Promise<{ success: boolean; session: MeetingSessionRecord }> {
+    const user = await userRepository.findById(userId);
+    if (!user || user.status !== 'active') {
+      throw new Error('Authentication required');
+    }
+
+    const meeting = await meetingRepository.findById(meetingId);
+    if (!meeting) {
+      const err = new Error('Meeting not found');
+      (err as any).statusCode = 404;
+      (err as any).code = 'MEETING_NOT_FOUND';
+      throw err;
+    }
+
+    const roles = await meetingAuthorizationService.getHostRoles(meeting, user.id);
+    if (!roles.isHost) {
+      const err = new Error('Unauthorized: Only meeting owner or alternative host can record host joined');
+      (err as any).statusCode = 403;
+      (err as any).code = 'NOT_HOST';
+      throw err;
+    }
+
+    const targetSession = sessionId
+      ? await meetingSessionRepository.findById(sessionId)
+      : await meetingSessionRepository.findActiveByMeetingId(meeting.id);
+
+    if (!targetSession || targetSession.status !== 'active') {
+      const err = new Error('No active meeting session found');
+      (err as any).statusCode = 404;
+      (err as any).code = 'NO_ACTIVE_SESSION';
+      throw err;
+    }
+
+    const updatedSession = await meetingSessionRepository.markHostJoined(targetSession.id);
+    logLifecycle('host_joined_room', {
+      meetingId: meeting.id,
+      sessionId: targetSession.id,
+      userId: user.id,
+    });
+
+    meetingEventBus.emitHostJoinedRoom({
+      meetingId: meeting.id,
+      roomId: meeting.room_id,
+      sessionId: targetSession.id,
+      userId: user.id,
+      status: 'active',
+      timestamp: new Date().toISOString(),
+    });
+
+    return { success: true, session: updatedSession! };
+  }
+
+  /**
+   * Host exit notification: marks that the host has left the room.
+   */
+  public async recordHostLeft(
+    userId: string,
+    meetingId: string,
+    sessionId?: string
+  ): Promise<{ success: boolean }> {
+    const user = await userRepository.findById(userId);
+    if (!user || user.status !== 'active') {
+      throw new Error('Authentication required');
+    }
+
+    const meeting = await meetingRepository.findById(meetingId);
+    if (!meeting) {
+      const err = new Error('Meeting not found');
+      (err as any).statusCode = 404;
+      (err as any).code = 'MEETING_NOT_FOUND';
+      throw err;
+    }
+
+    const roles = await meetingAuthorizationService.getHostRoles(meeting, user.id);
+    if (!roles.isHost) {
+      const err = new Error('Unauthorized: Only meeting owner or alternative host can record host left');
+      (err as any).statusCode = 403;
+      (err as any).code = 'NOT_HOST';
+      throw err;
+    }
+
+    const targetSession = sessionId
+      ? await meetingSessionRepository.findById(sessionId)
+      : await meetingSessionRepository.findActiveByMeetingId(meeting.id);
+
+    if (targetSession && targetSession.status === 'active') {
+      await meetingSessionRepository.markHostLeft(targetSession.id);
+      meetingEventBus.emitHostLeftRoom({
+        meetingId: meeting.id,
+        roomId: meeting.room_id,
+        sessionId: targetSession.id,
+        userId: user.id,
+        status: 'active',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    return { success: true };
   }
 
   /**
@@ -777,7 +897,11 @@ export class MeetingService {
 
       // Non-host: check joinBeforeHost policy & lead time window
       if (!res.canJoinBeforeHostNow || !res.nextOccurrence) {
-        const err = new Error('The host has not started this meeting yet. Please wait for the host.');
+        const err = new Error(
+          res.activeSession
+            ? 'The host has not joined this meeting yet. Please wait for the host.'
+            : 'The host has not started this meeting yet. Please wait for the host.'
+        );
         (err as any).statusCode = 403;
         (err as any).code = 'WAITING_FOR_HOST';
         throw err;
@@ -839,6 +963,15 @@ export class MeetingService {
     // Case B: Active session exists
     const activeSession = res.activeSession!;
     const activeOccurrence = res.activeOccurrence!;
+
+    // Non-host joining an active session:
+    // STRICT CHECK: Has host joined the room? Or does meeting allow joinBeforeHost?
+    if (!res.isHost && !activeSession.host_joined_at && !meeting.settings.joinBeforeHost) {
+      const err = new Error('The host has not joined this meeting yet. Please wait for the host.');
+      (err as any).statusCode = 403;
+      (err as any).code = 'WAITING_FOR_HOST';
+      throw err;
+    }
 
     // Passcode check for non-hosts
     if (meeting.settings.passcodeEnabled && meeting.passcode_hash && !res.isHost) {
@@ -965,7 +1098,11 @@ export class MeetingService {
     const meeting = res.meeting;
 
     if (res.status === 'waiting_for_host' && !res.canJoinBeforeHostNow) {
-      const err = new Error('The host has not started this meeting yet. Please wait for the host.');
+      const err = new Error(
+        res.activeSession
+          ? 'The host has not joined this meeting yet. Please wait for the host.'
+          : 'The host has not started this meeting yet. Please wait for the host.'
+      );
       (err as any).statusCode = 403;
       (err as any).code = 'WAITING_FOR_HOST';
       throw err;
@@ -996,6 +1133,13 @@ export class MeetingService {
 
     let session = res.activeSession;
     let occurrence = res.activeOccurrence;
+
+    if (session && !session.host_joined_at && !meeting.settings.joinBeforeHost) {
+      const err = new Error('The host has not joined this meeting yet. Please wait for the host.');
+      (err as any).statusCode = 403;
+      (err as any).code = 'WAITING_FOR_HOST';
+      throw err;
+    }
 
     if (!session || !occurrence) {
       if (!res.canJoinBeforeHostNow || !res.nextOccurrence) {

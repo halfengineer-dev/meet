@@ -499,18 +499,18 @@ export default function MeetingWaitingRoom() {
                             </div>
 
                             <span className="waiting-status-badge waiting">
-                                {info?.lastEndedOccurrence ? 'Session Ended • Next Scheduled' : 'Waiting for Host'}
+                                {info?.lastEndedOccurrence ? 'Session Ended • Next Scheduled' : (info?.activeOccurrence ? 'Waiting for Host to Join' : 'Waiting for Host')}
                             </span>
 
                             <h1>
                                 {info?.lastEndedOccurrence && info?.nextOccurrence
                                     ? `${info.title || 'This meeting'} has ended for today.`
-                                    : 'Waiting for the host to start this meeting'}
+                                    : (info?.activeOccurrence ? 'Waiting for the host to join the room' : 'Waiting for the host to start this meeting')}
                             </h1>
                             <p className="waiting-subtitle">
                                 {info?.lastEndedOccurrence && info?.nextOccurrence
                                     ? `Next meeting: ${formatScheduledDateTime(info.nextOccurrence.scheduledAt, info.timezone)}. You'll be connected automatically once the host starts the next session.`
-                                    : (statusMessage || 'Please wait — this page will automatically connect you as soon as the host starts the meeting.')}
+                                    : (statusMessage || (info?.activeOccurrence ? 'The host has initiated the meeting. Please wait — you will be connected automatically as soon as the host enters the room.' : 'Please wait — this page will automatically connect you as soon as the host starts and joins the room.'))}
                             </p>
 
                             {/* Meeting Info Card */}

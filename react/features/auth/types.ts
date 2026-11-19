@@ -230,6 +230,8 @@ export interface IPublicMeetingInfo {
     joinBeforeHost?: boolean;
     joinBeforeHostMinutes?: number;
     canJoinBeforeHostNow?: boolean;
+    isHostJoined?: boolean;
+    isHostInRoom?: boolean;
     passcodeEnabled?: boolean;
     waitingRoomEnabled?: boolean;
     requireAuthentication?: boolean;
