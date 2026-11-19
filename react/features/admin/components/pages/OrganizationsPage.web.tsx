@@ -3,7 +3,7 @@ import { ArrowLeft, Building2, Mail, Plus, RefreshCw, Save, Trash2, Upload, User
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { adminApi } from '../../api';
-import { IAdminContextInfo, IAdminOrgPolicies, IAdminOrganizationRow } from '../../types';
+import { IAdminContextInfo, IAdminOrgPolicies, IAdminOrganizationRow, IAdminUserRow } from '../../types';
 import ConfirmModal from '../shared/ConfirmModal.web';
 
 interface IOrganizationsPageProps {
@@ -31,6 +31,7 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
     const [ showCreate, setShowCreate ] = useState(false);
     const [ newOrgName, setNewOrgName ] = useState('');
     const [ newOrgPlan, setNewOrgPlan ] = useState('free');
+    const [ newOrgOwnerId, setNewOrgOwnerId ] = useState('');
 
     // Invite form
     const [ inviteEmail, setInviteEmail ] = useState('');
@@ -38,6 +39,10 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
     const [ bulkCsv, setBulkCsv ] = useState('');
     const [ addMemberUserId, setAddMemberUserId ] = useState('');
     const [ addMemberRole, setAddMemberRole ] = useState('member');
+    const [ registeredUsers, setRegisteredUsers ] = useState<IAdminUserRow[]>([]);
+    const [ loadingUsers, setLoadingUsers ] = useState(false);
+    const [ manualUuidMode, setManualUuidMode ] = useState(false);
+    const [ userSearchFilter, setUserSearchFilter ] = useState('');
     const [ confirmDeleteOrg, setConfirmDeleteOrg ] = useState<IAdminOrganizationRow | null>(null);
     const [ busy, setBusy ] = useState(false);
 
@@ -87,22 +92,45 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
         }
     }, [ accessToken ]);
 
+    const loadRegisteredUsers = useCallback(async () => {
+        setLoadingUsers(true);
+        try {
+            const res = await adminApi.listUsers(accessToken, { limit: 200 });
+
+            setRegisteredUsers(res.users || []);
+        } catch (err) {
+            console.error('Failed to load registered users', err);
+        } finally {
+            setLoadingUsers(false);
+        }
+    }, [ accessToken ]);
+
     useEffect(() => {
         if (selectedOrgId) {
             loadDetail(selectedOrgId);
+            loadRegisteredUsers();
         } else {
             setOrgDetail(null);
+            setRegisteredUsers([]);
+            setUserSearchFilter('');
+            setManualUuidMode(false);
+            setAddMemberUserId('');
         }
-    }, [ loadDetail, selectedOrgId ]);
+    }, [ loadDetail, loadRegisteredUsers, selectedOrgId ]);
 
     const handleCreateOrg = async (e: React.FormEvent) => {
         e.preventDefault();
         setBusy(true);
         setError(null);
         try {
-            await adminApi.createOrganization(accessToken, { name: newOrgName.trim(), planSlug: newOrgPlan });
+            await adminApi.createOrganization(accessToken, {
+                name: newOrgName.trim(),
+                planSlug: newOrgPlan,
+                ...(newOrgOwnerId ? { ownerUserId: newOrgOwnerId } : {})
+            });
             setShowCreate(false);
             setNewOrgName('');
+            setNewOrgOwnerId('');
             setNotice('Organization created.');
             await loadList();
         } catch (err: any) {
@@ -179,6 +207,7 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
             setAddMemberUserId('');
             setNotice('Member added to organization.');
             await loadDetail(selectedOrgId);
+            await loadRegisteredUsers();
         } catch (err: any) {
             setError(err.message || 'Failed to add member');
         } finally {
@@ -251,6 +280,16 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
     if (selectedOrgId && orgDetail) {
         const org = orgDetail.organization;
         const usage = orgDetail.usage;
+        const currentMemberIds = new Set((orgDetail.members || []).map((m: any) => m.userId || m.id));
+        const availableCandidateUsers = registeredUsers.filter(u => !currentMemberIds.has(u.id));
+        const filteredCandidateUsers = availableCandidateUsers.filter(u => {
+            if (!userSearchFilter.trim()) {
+                return true;
+            }
+            const q = userSearchFilter.toLowerCase();
+
+            return (u.name || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q);
+        });
 
         return (
             <div className = 'fa-page'>
@@ -386,31 +425,131 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
 
                 <div className = 'fa-grid-2'>
                     <div className = 'fa-card'>
-                        <div className = 'fa-card-header'><h3>Members ({orgDetail.members.length})</h3></div>
+                        <div className = 'fa-card-header'>
+                            <div>
+                                <h3>Members ({orgDetail.members.length})</h3>
+                                <p
+                                    className = 'fa-muted-xs'
+                                    style = {{ margin: 0 }}>
+                                    Assign registered users to this organization.
+                                </p>
+                            </div>
+                        </div>
                         {canManage && (
-                            <form
-                                className = 'fa-inline-form'
-                                onSubmit = { handleAddMember }>
-                                <input
-                                    onChange = { e => setAddMemberUserId(e.target.value) }
-                                    placeholder = 'Existing User ID (UUID)'
-                                    type = 'text'
-                                    value = { addMemberUserId } />
-                                <select
-                                    onChange = { e => setAddMemberRole(e.target.value) }
-                                    value = { addMemberRole }>
-                                    <option value = 'member'>Member</option>
-                                    <option value = 'meeting_admin'>Meeting Admin</option>
-                                    <option value = 'org_admin'>Org Admin</option>
-                                    <option value = 'org_owner'>Org Owner</option>
-                                </select>
-                                <button
-                                    className = 'fa-btn fa-btn-primary'
-                                    disabled = { busy }
-                                    type = 'submit'>
-                                    <UserPlus size = { 14 } /> Add
-                                </button>
-                            </form>
+                            <div style = {{ marginBottom: 16 }}>
+                                {!manualUuidMode ? (
+                                    <div style = {{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        {availableCandidateUsers.length > 5 && (
+                                            <input
+                                                className = 'fa-input'
+                                                onChange = { e => setUserSearchFilter(e.target.value) }
+                                                placeholder = 'Filter users by name or email...'
+                                                style = {{ maxWidth: 280, padding: '6px 10px', fontSize: 12 }}
+                                                type = 'text'
+                                                value = { userSearchFilter } />
+                                        )}
+                                        <form
+                                            className = 'fa-inline-form'
+                                            onSubmit = { handleAddMember }
+                                            style = {{ marginBottom: 6 }}>
+                                            <select
+                                                aria-label = 'Select registered user'
+                                                disabled = { busy || loadingUsers }
+                                                onChange = { e => setAddMemberUserId(e.target.value) }
+                                                style = {{ flex: 2, minWidth: 200 }}
+                                                value = { addMemberUserId }>
+                                                <option value = ''>
+                                                    {loadingUsers
+                                                        ? 'Loading registered users...'
+                                                        : filteredCandidateUsers.length === 0
+                                                            ? (userSearchFilter ? 'No users matching filter' : 'No available users to add')
+                                                            : `-- Select a registered user (${filteredCandidateUsers.length} available) --`}
+                                                </option>
+                                                {filteredCandidateUsers.map(u => (
+                                                    <option
+                                                        key = { u.id }
+                                                        value = { u.id }>
+                                                        {u.name ? `${u.name} (${u.email})` : u.email}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <select
+                                                aria-label = 'Member role'
+                                                onChange = { e => setAddMemberRole(e.target.value) }
+                                                style = {{ flex: 1, minWidth: 120 }}
+                                                value = { addMemberRole }>
+                                                <option value = 'member'>Member</option>
+                                                <option value = 'meeting_admin'>Meeting Admin</option>
+                                                <option value = 'org_admin'>Org Admin</option>
+                                                <option value = 'org_owner'>Org Owner</option>
+                                            </select>
+                                            <button
+                                                className = 'fa-btn fa-btn-primary'
+                                                disabled = { busy || !addMemberUserId }
+                                                type = 'submit'>
+                                                <UserPlus size = { 14 } /> Add
+                                            </button>
+                                        </form>
+                                        <div style = {{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <button
+                                                className = 'fa-link-btn'
+                                                onClick = { () => {
+                                                    setManualUuidMode(true);
+                                                    setAddMemberUserId('');
+                                                } }
+                                                style = {{ fontSize: 12 }}
+                                                type = 'button'>
+                                                Or enter UUID manually
+                                            </button>
+                                            {availableCandidateUsers.length > 0 && (
+                                                <span className = 'fa-muted-xs'>
+                                                    {availableCandidateUsers.length} user{availableCandidateUsers.length === 1 ? '' : 's'} available to add
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style = {{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                        <form
+                                            className = 'fa-inline-form'
+                                            onSubmit = { handleAddMember }
+                                            style = {{ marginBottom: 6 }}>
+                                            <input
+                                                onChange = { e => setAddMemberUserId(e.target.value) }
+                                                placeholder = 'Paste User ID (UUID)'
+                                                style = {{ flex: 2, minWidth: 200 }}
+                                                type = 'text'
+                                                value = { addMemberUserId } />
+                                            <select
+                                                aria-label = 'Member role'
+                                                onChange = { e => setAddMemberRole(e.target.value) }
+                                                style = {{ flex: 1, minWidth: 120 }}
+                                                value = { addMemberRole }>
+                                                <option value = 'member'>Member</option>
+                                                <option value = 'meeting_admin'>Meeting Admin</option>
+                                                <option value = 'org_admin'>Org Admin</option>
+                                                <option value = 'org_owner'>Org Owner</option>
+                                            </select>
+                                            <button
+                                                className = 'fa-btn fa-btn-primary'
+                                                disabled = { busy || !addMemberUserId.trim() }
+                                                type = 'submit'>
+                                                <UserPlus size = { 14 } /> Add
+                                            </button>
+                                        </form>
+                                        <button
+                                            className = 'fa-link-btn'
+                                            onClick = { () => {
+                                                setManualUuidMode(false);
+                                                setAddMemberUserId('');
+                                            } }
+                                            style = {{ fontSize: 12, alignSelf: 'flex-start' }}
+                                            type = 'button'>
+                                            &larr; Switch back to user dropdown list
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         )}
                         <div className = 'fa-table-wrap'>
                             <table className = 'fa-table'>
@@ -432,6 +571,7 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
                                                             onClick = { async () => {
                                                                 await adminApi.removeOrgMember(accessToken, selectedOrgId, m.userId);
                                                                 await loadDetail(selectedOrgId);
+                                                                await loadRegisteredUsers();
                                                             } }
                                                             type = 'button'>
                                                             Remove
@@ -509,7 +649,10 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
                 {adminContext.isPlatformAdmin && canManage && (
                     <button
                         className = 'fa-btn fa-btn-primary'
-                        onClick = { () => setShowCreate(true) }
+                        onClick = { () => {
+                            loadRegisteredUsers();
+                            setShowCreate(true);
+                        } }
                         type = 'button'>
                         <Plus size = { 15 } /> Create Organization
                     </button>
@@ -616,6 +759,21 @@ export default function OrganizationsPage({ accessToken, adminContext, mode, ini
                                     <option value = 'pro'>Pro</option>
                                     <option value = 'business'>Business</option>
                                     <option value = 'enterprise'>Enterprise</option>
+                                </select>
+                            </div>
+                            <div className = 'fa-field'>
+                                <label>Initial Owner (Optional)</label>
+                                <select
+                                    onChange = { e => setNewOrgOwnerId(e.target.value) }
+                                    value = { newOrgOwnerId }>
+                                    <option value = ''>-- Assign later --</option>
+                                    {registeredUsers.map(u => (
+                                        <option
+                                            key = { u.id }
+                                            value = { u.id }>
+                                            {u.name ? `${u.name} (${u.email})` : u.email}
+                                        </option>
+                                    ))}
                                 </select>
                             </div>
                             <div className = 'fa-modal-actions'>
