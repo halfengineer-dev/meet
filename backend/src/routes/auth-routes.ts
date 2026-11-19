@@ -4,10 +4,34 @@ import { resolveAdminContext } from '../admin/rbac';
 import { requireAuth, AuthenticatedRequest } from '../auth/middleware';
 import { createRateLimiter } from '../auth/rate-limiter';
 import { REFRESH_TOKEN_EXPIRATION_DAYS } from '../auth/tokens';
+import { userRepository } from '../db/repositories/user-repository';
+import { adminStore } from '../db/repositories/admin-store';
 
 export const authRouter = Router();
 
 const REFRESH_COOKIE_NAME = 'faceonn_refresh_token';
+
+async function enrichSafeUser(safeUser: any) {
+  const userRecord = await userRepository.findById(safeUser.id);
+  const adminCtx = userRecord ? await resolveAdminContext(userRecord) : null;
+  let orgName: string | null = null;
+  const orgId = safeUser.organizationId || adminCtx?.scopedOrganizationId;
+  if (orgId) {
+    const org = await adminStore.findOrganizationById(orgId).catch(() => null);
+    if (org) orgName = org.name;
+  }
+  return {
+    ...safeUser,
+    organizationId: orgId || null,
+    organizationName: orgName,
+    isAdmin: Boolean(adminCtx),
+    adminScope: adminCtx ? (adminCtx.isPlatformAdmin ? 'platform' : 'organization') : null,
+    platformRole: adminCtx?.platformRole || null,
+    orgRole: adminCtx?.orgRole || null,
+    scopedOrganizationId: adminCtx?.scopedOrganizationId || null,
+    permissions: adminCtx ? Array.from(adminCtx.permissions) : [],
+  };
+}
 
 function setRefreshCookie(res: Response, refreshToken: string) {
   const isProd = process.env.NODE_ENV === 'production';
@@ -61,10 +85,11 @@ authRouter.post('/login', loginLimiter, async (req, res) => {
     };
 
     const { user, accessToken, refreshToken } = await authService.login(email, password, meta);
+    const enrichedUser = await enrichSafeUser(user);
 
     setRefreshCookie(res, refreshToken);
     res.json({
-      user,
+      user: enrichedUser,
       accessToken,
     });
   } catch (err: any) {
@@ -90,10 +115,11 @@ authRouter.post('/refresh', async (req, res) => {
       refreshToken,
       meta
     );
+    const enrichedUser = await enrichSafeUser(user);
 
     setRefreshCookie(res, newRefreshToken);
     res.json({
-      user,
+      user: enrichedUser,
       accessToken,
     });
   } catch (err: any) {
@@ -123,17 +149,9 @@ authRouter.get('/me', requireAuth, async (req: AuthenticatedRequest, res) => {
     res.status(401).json({ error: 'Not authenticated' });
     return;
   }
-  const adminCtx = await resolveAdminContext(req.user);
+  const enrichedUser = await enrichSafeUser(toSafeUser(req.user));
   res.json({
-    user: {
-      ...toSafeUser(req.user),
-      isAdmin: Boolean(adminCtx),
-      adminScope: adminCtx ? (adminCtx.isPlatformAdmin ? 'platform' : 'organization') : null,
-      platformRole: adminCtx?.platformRole || null,
-      orgRole: adminCtx?.orgRole || null,
-      scopedOrganizationId: adminCtx?.scopedOrganizationId || null,
-      permissions: adminCtx ? Array.from(adminCtx.permissions) : [],
-    },
+    user: enrichedUser,
   });
 });
 

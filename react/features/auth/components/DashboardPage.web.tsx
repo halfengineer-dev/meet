@@ -420,7 +420,23 @@ export default function DashboardPage() {
                                     <div className="faceonn-dash-menu-header">
                                         <div className="menu-header-name">{displayName}</div>
                                         <div className="menu-header-email">{user?.email}</div>
+                                        {user?.organizationName && (
+                                            <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: 999, fontWeight: 600 }}>
+                                                🏢 {user.organizationName} {user.orgRole ? `· ${user.orgRole.replace('_', ' ')}` : ''}
+                                            </div>
+                                        )}
                                     </div>
+                                    {isAdmin && (
+                                        <a
+                                            className="faceonn-dash-menu-item"
+                                            href="/admin"
+                                            style={{ color: '#2563eb', fontWeight: 600 }}>
+                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                            </svg>
+                                            Admin Control Center
+                                        </a>
+                                    )}
                                     <button
                                         type="button"
                                         className="faceonn-dash-menu-item"

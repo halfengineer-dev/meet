@@ -11,6 +11,7 @@ export interface IUser {
     platformRole?: string | null;
     orgRole?: string | null;
     scopedOrganizationId?: string | null;
+    organizationName?: string | null;
     permissions?: string[];
     organizationId?: string | null;
     country?: string | null;
