@@ -433,24 +433,31 @@ export default function MeetingWaitingRoom() {
         <div className="faceonn-waiting-page">
             {/* Top Navigation Bar */}
             <header className="waiting-topbar">
-                <a href={isUserAuth ? '/dashboard' : '/'} className="waiting-brand-link">
-                    <img src="/images/faceonn-neon-logo.png" alt="Faceonn" className="waiting-brand-logo" />
-                </a>
+                <div className="waiting-topbar-inner">
+                    <a href={isUserAuth ? '/dashboard' : '/'} className="waiting-brand-link" title="Faceonn Home">
+                        <img src="/images/faceonn-neon-logo.png" alt="Faceonn" className="waiting-brand-logo" />
+                    </a>
 
-                <div className="waiting-topbar-actions">
-                    {isUserAuth ? (
-                        <div className="waiting-user-chip">
-                            <span className="waiting-user-dot" />
-                            <span>{user?.name || user?.email}</span>
-                        </div>
-                    ) : (
-                        <button
-                            type="button"
-                            className="waiting-btn-outline"
-                            onClick={handleSignInAsHost}>
-                            Sign In
-                        </button>
-                    )}
+                    <div className="waiting-topbar-actions">
+                        {isUserAuth ? (
+                            <>
+                                <div className="waiting-user-chip" title={`Signed in as ${user?.email || user?.name}`}>
+                                    <span className="waiting-user-dot" />
+                                    <span className="waiting-user-name">{user?.name || user?.email}</span>
+                                </div>
+                                <a href="/dashboard" className="waiting-topbar-link">
+                                    Dashboard
+                                </a>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                className="waiting-topbar-signin-btn"
+                                onClick={handleSignInAsHost}>
+                                Sign In
+                            </button>
+                        )}
+                    </div>
                 </div>
             </header>
 
